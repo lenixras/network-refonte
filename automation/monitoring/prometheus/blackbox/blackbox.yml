@@ -1,0 +1,39 @@
+# =============================================================================
+# blackbox.yml — modules de sonde pour blackbox_exporter (mon-prom-01, :9115)
+# Consomme par monitoring/prometheus/prometheus.yml (job blackbox_http/icmptcp)
+# =============================================================================
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200, 301, 302]
+      # Les sondeurs GLPI/WSUS cibles en HTTP interne ; pas d'auth ici :
+      # les checks applicatifs authentifies passent par GLPI_TOKEN (.env)
+      # cote scripts, pas dans le probeur public.
+  dns_check:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: dc01.example.local
+      query_type: A
+      transport_protocol: udp
+      preferred_ip_protocol: ip4
+      valid_rcodes: [NOERROR]
+  # NB : l'expiration des certificats est suivie via la serie
+  # probe_ssl_earliest_cert_expiry remonte par les sondes tls_connect ci-dessous,
+  # exploitee dans alerts/rules-network.yml (pas d'option "expires_within").
+  tls_tcp:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      tls: enable
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4

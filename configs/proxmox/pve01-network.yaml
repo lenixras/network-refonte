@@ -1,0 +1,102 @@
+# ============================================================================
+# FICHIER : pve01-network.yaml  (EXTRAIT ILLUSTRATIF)
+# PERIPHERIQUE : HPE ProLiant DL380 Gen10 Plus — noeud PROXMOX VE 8.2 "pve01"
+# ROLE : config reseau du noeud (miroir de /etc/network/interfaces, syntaxe
+#        Debian "ifupdown" ; l'extension .yaml est ici un conteneur lisible).
+# SOURCE DE VERITE : docs/00-architecture-reference.md (sections 4 & 5)
+# ----------------------------------------------------------------------------
+# FAITS (conformes au plan) :
+#   - IP service/management  = 10.10.20.10  (VLAN 20 SERVERS)  hostname pve01
+#   - corosync (cluster)     = 10.10.15.10  (VLAN 15 CLUSTER, MTU 9000)
+#   - uplink vers le core (VLAN trunk 10..90) ; LACP (bond) conseille.
+#   - stockage : local-zfs + nas-nfs (VLAN 15, mtu 9000) — voir storage.cfg
+# VALEURS ANONYMISEES : example.local ; cles cluster -> <REDACTED>.
+# ============================================================================
+
+auto lo
+iface lo inet loopback
+
+# --- CARTE PHYSIQUE / BOND (uplink vers core-sw-01) --------------------------
+# LACP 802.3ad (bond0) sur 2 x 10G SFP+ ; le core configure le port-channel en
+# "lag" (mode active). MDM/MGMT passe par les bridges VLAN ci-dessous.
+auto bond0
+iface bond0 inet manual
+    bond-slaves eno1 eno2
+    bond-mode 802.3ad
+    bond-miimon 100
+    bond-xmit-hash-policy layer3+4
+    mtu 9000
+
+# --- VMBR0 : MANAGEMENT (VLAN 20 SERVERS) -----------------------------------
+# IP de service du noeud, portee par le core (SVI 10.10.20.1). Gateway = core.
+auto vmbr0
+iface vmbr0 inet static
+    address 10.10.20.10/24
+    gateway 10.10.20.1
+    bridge-ports bond0.20
+    bridge-stp off
+    bridge-fd 0
+    mtu 9000
+#    source /etc/hosts : pve01.example.local
+
+# sous-interface VLAN 20 sur le bond (802.1q)
+auto bond0.20
+iface bond0.20 inet manual
+    vlan-raw-device bond0
+
+# --- VMBR1 : COROSYNC / CLUSTER + STOCKAGE (VLAN 15 CLUSTER, MTU 9000) -------
+# Reseau prives du cluster : trafic corosync (multicast/unicast ring0) + acces
+# NFS au NAS (10.10.50.20 via routage). Doit etre separe du plan management.
+auto vmbr1
+iface vmbr1 inet static
+    address 10.10.15.10/24
+    bridge-ports bond0.15
+    bridge-stp off
+    bridge-fd 0
+    mtu 9000
+#    (ne pas mettre de gateway ici : routage par defaut = vmbr0/10.10.20.1)
+
+auto bond0.15
+iface bond0.15 inet manual
+    vlan-raw-device bond0
+
+# --- VMBR-LAB : ports bridges pour les VLANs VM (20,50,60,80,90) -------------
+# Les VM choisissent leur bridge/tag (ex. DC01 VLAN 20, PBS01 VLAN 50...).
+# Motif : un bridge par VLAN tagge (bridge-nf-call-iptables on si firewall VM).
+#   auto vmbr20 ! deja vmbr0 (mgmt) ; on ajoute les bridges dedies ci-dessous.
+
+auto vmbr50
+iface vmbr50 inet manual
+    bridge-ports bond0.50
+    bridge-stp off
+    bridge-fd 0
+    mtu 9000
+auto bond0.50
+iface bond0.50 inet manual
+    vlan-raw-device bond0
+
+auto vmbr80
+iface vmbr80 inet manual
+    bridge-ports bond0.80
+    bridge-stp off
+    bridge-fd 0
+auto bond0.80
+iface bond0.80 inet manual
+    vlan-raw-device bond0
+
+auto vmbr90
+iface vmbr90 inet manual
+    bridge-ports bond0.90
+    bridge-stp off
+    bridge-fd 0
+auto bond0.90
+iface bond0.90 inet manual
+    vlan-raw-device bond0
+
+# ============================================================================
+# NOTE LACP : sur le core, les 2 ports membre -> "interface port-channel1"
+#   vlan trunk native 10 / allowed 10,15,20,50,80,90 ; pas de spanning-tree
+#   redondant (le bond PVE gere l'agg). pve02 = 10.10.20.11 / 10.10.15.11.
+# ============================================================================
+# FIN — pve01-network.yaml (extrait). Cluster : cluster.conf. Stockage : storage.cfg
+# ============================================================================

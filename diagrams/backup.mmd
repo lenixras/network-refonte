@@ -1,0 +1,23 @@
+%% Sauvegarde 3-2-1 — PBS, NAS, hors-site — source : docs/00-architecture-reference.md §7 + docs/backup.md
+flowchart LR
+    VM["Copie 1 — Production — pve01 / pve02 · local-zfs RAID1"]
+    PBS["Copie 2 — PBS01 · 10.10.50.10 — Proxmox Backup Server 3.1 · VLAN 50 · MTU 9000"]
+    NAS["nas01 — Synology RS1221+ · 10.10.50.20 — datastore PBS via NFS · Btrfs · retention lock immutable"]
+    OFF["Copie 3 — Hors-site — stockage objet distant · réplication chiffrée · air-gap logique"]
+
+    WIN["Windows — AD System State · FILE01 · WSUS01 — Veeam Agent / wbadmin"]
+    CFG["Config réseau — Aruba · WatchGuard · MikroTik · NAS — dépôt privé versionné"]
+
+    VM -->|"Sauvegarde full + incrémentale chiffrée + dédup — RPO Tier 0 : 1 h"| PBS
+    WIN -->|"Agent Windows vers datastore NAS"| NAS
+    CFG -->|"Archive 90 versions"| NAS
+    PBS -->|"Datastore monté en NFS — prune-after 30 jours"| NAS
+    NAS -->|"Snapshot Replication / Hyper Backup — chiffré, immuable"| OFF
+
+    subgraph RET["Rétention (docs/backup.md)"]
+        R1["Incrémental — 7 jours glissants"]
+        R2["Full hebdo — 4 semaines"]
+        R3["Mensuel — 12 mois"]
+        R4["Annuel / archivage — 5 ans"]
+    end
+    NAS --- RET

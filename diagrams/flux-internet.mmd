@@ -1,0 +1,23 @@
+%% Flux Internet — sortants (NAT/PAT + failover) et entrants (GLPI publié via DMZ)
+%% Source de vérité : docs/00-architecture-reference.md + docs/networking.md
+sequenceDiagram
+    participant P as Poste — VLAN 30
+    participant C as Core CX 6300 VSF
+    participant FW as WatchGuard M270 — 10.10.90.2 / 10.10.10.254
+    participant FAI as FAI — Orange ou Telma (PUBLIC_IP_REDACTED)
+    participant I as Internet
+    participant RP as dmz-rp-01 — VLAN 90 · 10.10.90.10
+    participant GL as GLPI01 — VLAN 80 · 10.10.80.110
+
+    Note over P,I: Flux sortant LAN vers Internet
+    P->>C: Paquet destination Internet — routage SVI 10.10.30.1
+    C->>FW: Route 0.0.0.0/0 via 10.10.10.254
+    FW->>FAI: NAT/PAT depuis PUBLIC_IP_REDACTED — PBR par application
+    FAI->>I: Sortie Internet
+    Note over FW: Sonde Gateway Dependency 10 s · 3 échecs = bascule — Starlink activé si Orange ET Telma down (CGNAT sortant)
+
+    Note over I,GL: Flux entrant — GLPI publié (règle : rien sans reverse proxy DMZ)
+    I->>FW: HTTPS 443 vers PUBLIC_IP_REDACTED
+    FW->>RP: Published Server — DNAT vers DMZ VLAN 90 uniquement
+    RP->>GL: Proxy inverse HTTPS vers GLPI01 (interdit côté WAN en direct)
+    GL-->>I: Réponse via dmz-rp-01 puis WatchGuard

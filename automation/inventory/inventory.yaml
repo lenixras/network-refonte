@@ -1,0 +1,313 @@
+# =============================================================================
+# inventaire.yaml — Inventaire machine-readable de l'infrastructure example.local
+# Source de vérité : docs/00-architecture-reference.md (ne jamais contredire ce plan)
+#
+# DONNÉES ANONYMISÉES :
+#   - adresses publiques        -> PUBLIC_IP_REDACTED
+#   - domaine                   -> example.local
+#   - aucun secret dans ce fichier (les identifiants vivent dans .env)
+#
+# Utilisé par :
+#   - automation/inventory/generate-inventory.sh  (génération du tableau Markdown)
+#   - automation/provisioning/proxmox-create-vms.sh (création des VM Proxmox)
+# =============================================================================
+
+meta:
+  domain: example.local
+  netbios_domain: EXAMPLE
+  site: "Siège — Baie 1 / Zones A-B-C"
+  source_of_truth: "../../docs/00-architecture-reference.md"
+  anonymized: true
+  generated_note: "Toute IP/VLAN/hostname/VMID doit correspondre au plan d'architecture."
+
+# -----------------------------------------------------------------------------
+# Matériel réseau et serveurs physiques
+# -----------------------------------------------------------------------------
+hardware:
+  - name: core-sw-01
+    model: "Aruba CX 6300 24SFP+ (VSF stack, 2x)"
+    role: "Cœur L3, routage inter-VLAN, uplink firewall"
+    location: "Baie 1"
+  - name: acc-sw-a1
+    model: "Aruba CX 6100 24G PoU 370W (#1)"
+    role: "Switch accès — Zone A"
+    location: "Zone A"
+  - name: acc-sw-b1
+    model: "Aruba CX 6100 24G PoU 370W (#2)"
+    role: "Switch accès — Zone B"
+    location: "Zone B"
+  - name: acc-sw-c1
+    model: "Aruba CX 6100 24G PoU 370W (#3)"
+    role: "Switch accès — Zone C"
+    location: "Zone C"
+  - name: fwwg
+    model: "WatchGuard Firebox M270"
+    role: "Périmètre, NAT, failover 3 FAI (Orange/Telma/Starlink)"
+    location: "Baie 1"
+  - name: nas01
+    model: "Synology RS1221+ (DSM 7.2)"
+    role: "Cible de sauvegarde, partages, archive"
+    location: "Baie 1"
+  - name: pve01
+    model: "HPE ProLiant DL380 Gen10 Plus"
+    role: "Nœud hyperviseur Proxmox VE 8.2"
+    location: "Baie 1"
+  - name: pve02
+    model: "HPE ProLiant DL380 Gen10 Plus"
+    role: "Nœud hyperviseur Proxmox VE 8.2"
+    location: "Baie 1"
+  - name: starlink
+    model: "Routeur Starlink (mode pont)"
+    role: "FAI secours (satellite, CGNAT)"
+    location: "Baie 1"
+  - name: mikrotik-telma
+    model: "MikroTik hEX S (RB750Gr3)"
+    role: "CPE Fibre Telma (secondaire)"
+    location: "Baie 1"
+
+# -----------------------------------------------------------------------------
+# Réseau — plan VLAN (extrait lisible du plan §3)
+# -----------------------------------------------------------------------------
+vlans:
+  - { id: 10, name: MGMT,       prefix: "10.10.10.0/24",  gw: "10.10.10.1",  mtu: 1500 }
+  - { id: 15, name: CLUSTER,    prefix: "10.10.15.0/24",  gw: "10.10.15.1",  mtu: 9000 }
+  - { id: 20, name: SERVERS,    prefix: "10.10.20.0/24",  gw: "10.10.20.1",  mtu: 1500 }
+  - { id: 30, name: USERS,      prefix: "10.10.30.0/24",  gw: "10.10.30.1",  mtu: 1500 }
+  - { id: 40, name: WIFI,       prefix: "10.10.40.0/22",  gw: "10.10.40.1",  mtu: 1500 }
+  - { id: 50, name: BACKUP,     prefix: "10.10.50.0/24",  gw: "10.10.50.1",  mtu: 9000 }
+  - { id: 60, name: MONITORING, prefix: "10.10.60.0/24",  gw: "10.10.60.1",  mtu: 1500 }
+  - { id: 70, name: GUEST,      prefix: "10.10.70.0/22",  gw: "10.10.70.1",  mtu: 1500 }
+  - { id: 80, name: APPS,       prefix: "10.10.80.0/24",  gw: "10.10.80.1",  mtu: 1500 }
+  - { id: 90, name: DMZ,        prefix: "10.10.90.0/28",  gw: "10.10.90.1",  mtu: 1500 }
+
+# -----------------------------------------------------------------------------
+# Équipements réseau adressés (VLAN 10 MGMT, sauf mention)
+# -----------------------------------------------------------------------------
+network_devices:
+  - name: core-sw-01
+    hostname: core-sw-01.example.local
+    ip: 10.10.10.2
+    vlan: 10
+    role: "Core switch Aruba CX 6300 (VSF)"
+    node: null
+  - name: acc-sw-a1
+    hostname: acc-sw-a1.example.local
+    ip: 10.10.10.11
+    vlan: 10
+    role: "Switch accès Zone A"
+    node: null
+  - name: acc-sw-b1
+    hostname: acc-sw-b1.example.local
+    ip: 10.10.10.12
+    vlan: 10
+    role: "Switch accès Zone B"
+    node: null
+  - name: acc-sw-c1
+    hostname: acc-sw-c1.example.local
+    ip: 10.10.10.13
+    vlan: 10
+    role: "Switch accès Zone C"
+    node: null
+  - name: fw-ext
+    hostname: fw.example.local
+    ip: PUBLIC_IP_REDACTED
+    vlan: WAN
+    role: "WatchGuard M270 — interface publique"
+    node: null
+  - name: fw-int-dmz
+    hostname: null
+    ip: 10.10.90.2
+    vlan: 90
+    role: "WatchGuard M270 — interface DMZ (pied de sous-réseau)"
+    node: null
+  - name: fw-core-link
+    hostname: null
+    ip: 10.10.10.254
+    vlan: 10
+    role: "WatchGuard — interco L3 vers Core"
+    node: null
+  - name: ap-corpo-01
+    hostname: ap-corpo-01
+    ip: 10.10.10.31          # réservé DHCP
+    vlan: 10
+    role: "Point d'accès WiFi corporate"
+    node: null
+
+# -----------------------------------------------------------------------------
+# Hyperviseurs (nœuds physiques Proxmox VE 8.2)
+# -----------------------------------------------------------------------------
+hypervisors:
+  - name: pve01
+    hostname: pve01.example.local
+    ip: 10.10.20.10
+    vlan: 20
+    role: "Nœud Proxmox VE 8.2 (corosync 10.10.15.10)"
+    node: pve01
+  - name: pve02
+    hostname: pve02.example.local
+    ip: 10.10.20.11
+    vlan: 20
+    role: "Nœud Proxmox VE 8.2 (corosync 10.10.15.11)"
+    node: pve02
+
+# -----------------------------------------------------------------------------
+# Machines virtuelles — table §5 du plan (VMID, nœud, CPU, RAM, disque, VLAN)
+# ip/gw/dns sont dérivés du plan d'adressage §4. `template` = VM cloud-init
+# de référence (convention locale 9000, hors plan — à ajuster sur site).
+# -----------------------------------------------------------------------------
+vms:
+  - vmid: 101
+    name: DC01
+    hostname: dc01.example.local
+    node: pve01
+    os: "Windows Server 2022 Std"
+    role: "Contrôleur de domaine primaire (AD/DNS/DHCP)"
+    ip: 10.10.20.101
+    vlan: 20
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 100
+    storage: local-zfs
+  - vmid: 102
+    name: DC02
+    hostname: dc02.example.local
+    node: pve02
+    os: "Windows Server 2022 Std"
+    role: "Contrôleur de domaine réplica (AD/DNS/DHCP)"
+    ip: 10.10.20.102
+    vlan: 20
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 100
+    storage: local-zfs
+  - vmid: 110
+    name: FILE01
+    hostname: file01.example.local
+    node: pve01
+    os: "Windows Server 2022 Std"
+    role: "File server (partages, GPO)"
+    ip: 10.10.20.110
+    vlan: 20
+    cores: 4
+    memory_mb: 16384
+    disk_gb: 1024
+    storage: local-zfs
+  - vmid: 111
+    name: WSUS01
+    hostname: wsus01.example.local
+    node: pve01
+    os: "Windows Server 2022 Std"
+    role: "WSUS — pilotage des mises à jour"
+    ip: 10.10.20.111
+    vlan: 20
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 250
+    storage: local-zfs
+  - vmid: 201
+    name: APP01
+    hostname: app01.example.local
+    node: pve02
+    os: "Debian 12 / runtime métier"
+    role: "Application métier"
+    ip: 10.10.80.101
+    vlan: 80
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 80
+    storage: local-zfs
+  - vmid: 210
+    name: GLPI01
+    hostname: glpi01.example.local
+    node: pve02
+    os: "Debian 12 / GLPI 10.0.x"
+    role: "GLPI — ITSM / tickets"
+    ip: 10.10.80.110
+    vlan: 80
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 120
+    storage: local-zfs
+  - vmid: 301
+    name: PBS01
+    hostname: pbs01.example.local
+    node: pve01
+    os: "Proxmox Backup Server 3.1"
+    role: "Serveur de sauvegarde (stockage sur NAS via NFS)"
+    ip: 10.10.50.10
+    vlan: 50
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 200
+    storage: local-zfs
+    extra_disk_gb: 0          # data store sur nas01 (10.10.50.20), voir backup.md
+  - vmid: 401
+    name: MON-PROM
+    hostname: mon-prom-01.example.local
+    node: pve02
+    os: "Debian 12"
+    role: "Prometheus — collecte métriques"
+    ip: 10.10.60.10
+    vlan: 60
+    cores: 2
+    memory_mb: 4096
+    disk_gb: 120
+    storage: local-zfs
+  - vmid: 402
+    name: MON-GRAF
+    hostname: mon-graf-01.example.local
+    node: pve02
+    os: "Debian 12"
+    role: "Grafana — dashboards"
+    ip: 10.10.60.11
+    vlan: 60
+    cores: 2
+    memory_mb: 2048
+    disk_gb: 40
+    storage: local-zfs
+  - vmid: 403
+    name: MON-ALERT
+    hostname: mon-alert-01.example.local
+    node: pve02
+    os: "Debian 12"
+    role: "Alertmanager — routage alertes"
+    ip: 10.10.60.12
+    vlan: 60
+    cores: 1
+    memory_mb: 1024
+    disk_gb: 20
+    storage: local-zfs
+  - vmid: 410
+    name: MON-ZBX
+    hostname: mon-zbx-01.example.local
+    node: pve01
+    os: "Debian 12 / Zabbix 6.0 LTS"
+    role: "Zabbix — supervision ITIL"
+    ip: 10.10.60.20
+    vlan: 60
+    cores: 2
+    memory_mb: 4096
+    disk_gb: 100
+    storage: local-zfs
+  - vmid: 501
+    name: DMZ-RP
+    hostname: dmz-rp-01.example.local
+    node: pve02
+    os: "Debian 12 / Nginx"
+    role: "Reverse proxy DMZ"
+    ip: 10.10.90.10
+    vlan: 90
+    cores: 1
+    memory_mb: 1024
+    disk_gb: 30
+    storage: local-zfs
+
+# -----------------------------------------------------------------------------
+# Paramètres réseau globaux pour le provisionning
+# -----------------------------------------------------------------------------
+network_defaults:
+  dns_servers: ["10.10.20.101", "10.10.20.102"]   # DC01 / DC02
+  dns_search: example.local
+  cloudinit_template_vmid: 9000                   # convention locale (hors plan)
+  storage_sys: local-zfs
+  storage_nas: nas-nfs                            # VLAN 15, MTU 9000 (cf. plan §5)

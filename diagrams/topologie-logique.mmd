@@ -1,0 +1,70 @@
+%% Topologie logique — segmentation VLAN — source de vérité : docs/00-architecture-reference.md
+%% Passerelle de chaque VLAN : SVI sur le Core Aruba.
+flowchart TD
+    CORE["Core Aruba CX 6300 VSF — routage inter-VLAN — core-sw-01 · 10.10.10.2"]
+    FW["WatchGuard Firebox M270 — périmètre, NAT, publication DMZ"]
+
+    subgraph V10["VLAN 10 MGMT — 10.10.10.0/24 · gw 10.10.10.1"]
+        M1["core-sw-01 · 10.10.10.2"]
+        M2["acc-sw-a1/b1/c1 · 10.10.10.11 à 10.10.10.13"]
+        M3["Interco WatchGuard · 10.10.10.254"]
+        M4["ap-corpo-01 · réservé 10.10.10.31"]
+    end
+
+    subgraph V15["VLAN 15 CLUSTER — 10.10.15.0/24 · gw 10.10.15.1 · MTU 9000"]
+        C1["corosync pve01 · 10.10.15.10"]
+        C2["corosync pve02 · 10.10.15.11"]
+        C3["Stockage nas-nfs — NFS Proxmox"]
+    end
+
+    subgraph V20["VLAN 20 SERVERS — 10.10.20.0/24 · gw 10.10.20.1"]
+        S1["pve01 · 10.10.20.10 — pve02 · 10.10.20.11"]
+        S2["DC01 · 10.10.20.101 — DC02 · 10.10.20.102"]
+        S3["FILE01 · 10.10.20.110 — WSUS01 · 10.10.20.111"]
+    end
+
+    subgraph V30["VLAN 30 USERS — 10.10.30.0/24 · gw 10.10.30.1"]
+        U1["Postes filaires — DHCP 10.10.30.100–200 · bail 8h"]
+    end
+
+    subgraph V40["VLAN 40 WIFI — 10.10.40.0/22 · gw 10.10.40.1"]
+        W1["Clients corporate CORP-SSID — 802.1X · DHCP 10.10.40.100 à 10.10.43.200"]
+    end
+
+    subgraph V50["VLAN 50 BACKUP — 10.10.50.0/24 · gw 10.10.50.1 · MTU 9000"]
+        B1["PBS01 · 10.10.50.10 — Proxmox Backup Server 3.1"]
+        B2["nas01 · 10.10.50.20 — Synology RS1221+"]
+    end
+
+    subgraph V60["VLAN 60 MONITORING — 10.10.60.0/24 · gw 10.10.60.1"]
+        O1["mon-prom-01 · 10.10.60.10 — mon-graf-01 · 10.10.60.11"]
+        O2["mon-alert-01 · 10.10.60.12 — mon-zbx-01 · 10.10.60.20"]
+    end
+
+    subgraph V70["VLAN 70 GUEST — 10.10.70.0/22 · gw 10.10.70.1"]
+        G1["Invités WiFi GUEST-SSID — DHCP 10.10.70.100 à 10.10.71.200 · bail 4h"]
+    end
+
+    subgraph V80["VLAN 80 APPS — 10.10.80.0/24 · gw 10.10.80.1"]
+        A1["APP01 · 10.10.80.101 — GLPI01 · 10.10.80.110"]
+    end
+
+    subgraph V90["VLAN 90 DMZ — 10.10.90.0/28 · gw 10.10.90.1"]
+        D1["dmz-rp-01 · 10.10.90.10 — reverse proxy Nginx"]
+        D2["WatchGuard interface interne · 10.10.90.2"]
+    end
+
+    CORE -->|"SVI"| V10
+    CORE -->|"SVI"| V15
+    CORE -->|"SVI"| V20
+    CORE -->|"SVI"| V30
+    CORE -->|"SVI"| V40
+    CORE -->|"SVI"| V50
+    CORE -->|"SVI"| V60
+    CORE -->|"SVI · isolation no inter-STA"| V70
+    CORE -->|"SVI"| V80
+    CORE -->|"SVI"| V90
+    FW ---|"Défaut 0.0.0.0/0 via 10.10.10.254"| CORE
+    V70 -.->|"Internet seul — pas de transit LAN"| FW
+    FW ---|"Publication 443"| D1
+    D1 -->|"Proxy inverse"| A1

@@ -1,0 +1,152 @@
+# =============================================================================
+# rules-network.yml — Regles d'alerte Prometheus (reseau, hyperviseurs,
+#                     sauvegardes, services metier, certificats).
+# Routage : Alertmanager mon-alert-01 (10.10.60.12:9093) -> mail + webhook.
+# Charges/instances = series produites par les jobs de prometheus.yml.
+# =============================================================================
+groups:
+  # ---------------------------------------------------------------------------
+  - name: reseau-liens
+    rules:
+      - alert: LienDown
+        expr: up{job=~"snmp_switchs|snmp_fw_wan|snmp_nas"} == 0
+        for: 3m
+        labels: { severity: critical, scope: network }
+        annotations:
+          summary: "Equipement réseau injoignable en SNMP : {{ $labels.instance }}"
+          description: >-
+            Le snmp_exporter ne remonte plus {{ $labels.instance }} ({{ $labels.device }})
+            depuis 3 minutes. Verifier port trunk/uplink sur core-sw-01 (10.10.10.2)
+            et l'ACL SNMPv3 VLAN 10.
+
+      - alert: SwitchPortDown
+        expr: changes(ifOperStatus{ifAlias=~".+"} [10m]) > 0 and ifOperStatus == 0
+        for: 5m
+        labels: { severity: warning, scope: network }
+        annotations:
+          summary: "Port passe DOWN sur {{ $labels.instance }} ({{ $labels.ifName }})"
+          description: "Le port {{ $labels.ifName }} ({{ $labels.ifAlias }}) est down depuis 5 min."
+
+      - alert: LiaisonPerdueFai
+        expr: probe_success{job="blackbox_icmp_perimetre", instance=~"10.10.10.254"} == 0
+        for: 2m
+        labels: { severity: critical, scope: perimeter }
+        annotations:
+          summary: "Perte de l'interco WatchGuard<->Core (10.10.10.254)"
+          description: >-
+            Sonde ICMP vers l'interface MGMT du Firebox en echec : les 3 FAI
+            (Orange/Telma/Starlink) peuvent etre inaccessibles. Basculer sur
+            la procedure de failover (docs/networking.md).
+
+  # ---------------------------------------------------------------------------
+  - name: hyperviseurs-pve
+    rules:
+      - alert: PveNodeCpuHigh
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle", instance=~"10.10.20.10:9100|10.10.20.11:9100"}[5m])) * 100) > 85
+        for: 15m
+        labels: { severity: warning, scope: pve }
+        annotations:
+          summary: "CPU > 85% pendant 15 min sur nœud PVE {{ $labels.instance }}"
+          description: "pve01/pve02 saturés — verifier les VM chaudes (qm top) et envisager migration."
+
+      - alert: PveNodeRamHigh
+        expr: (1 - node_memory_MemAvailable_bytes{instance=~"10.10.20.10:9100|10.10.20.11:9100"} / node_memory_MemTotal_bytes) * 100 > 90
+        for: 10m
+        labels: { severity: critical, scope: pve }
+        annotations:
+          summary: "RAM > 90% sur {{ $labels.instance }} — risque de ballooning/OOM"
+          description: "Menace sur le cluster corosync (VLAN 15) : liberer ou migrer des VM."
+
+      - alert: PveClusterQuorum
+        expr: pve_cluster_status_cmaninfo_quorate{job="pve_exporter"} == 0
+        for: 1m
+        labels: { severity: critical, scope: pve }
+        annotations:
+          summary: "Perte de quorum du cluster PVE (pve01/pve02)"
+          description: "Corosync VLAN 15 (10.10.15.10/11) : verifier lien cluster ou redemarrer le service."
+
+  # ---------------------------------------------------------------------------
+  - name: sauvegardes
+    rules:
+      # Les series backup_job_success / restore_drill_* / replication_* sont
+      # poussées vers Prometheus par les scripts automation/backup/*.sh
+      # (via node_exporter textfile collector sur PBS01 ou pushgateway).
+      - alert: BackupJobFailed
+        expr: backup_job_success == 0
+        for: 5m
+        labels: { severity: critical, scope: backup }
+        annotations:
+          summary: "Job de sauvegarde PBS en echec (VMID {{ $labels.vmid }})"
+          description: >-
+            Verifier /var/log/vzdump et `proxmox-backup-client ls` sur
+            datastore backup de PBS01 (10.10.50.10). Relancer via
+            automation/backup/pbs-backup-job.sh --apply.
+
+      - alert: RestaurationJamaisTestee
+        expr: (time() - restore_drill_last_success_timestamp_seconds) / 86400 > 35
+        labels: { severity: warning, scope: backup }
+        annotations:
+          summary: "Test de restauration non realise depuis > 35 jours"
+          description: "Executer automation/backup/restore-drill.sh --apply (cycle mensuel obligatoire)."
+
+      - alert: ReplicationNasObsolete
+        expr: synology_replication_last_run_age_hours > 26
+        for: 2h
+        labels: { severity: critical, scope: backup }
+        annotations:
+          summary: "Snapshot Replication nas01 obsolete ({{ $value | printf \"%.0f\" }} h)"
+          description: "Maillon off-site de la strategie 3-2-1 rompu — cf. backup/synology-replication-check.sh."
+
+  # ---------------------------------------------------------------------------
+  - name: services-metier
+    rules:
+      - alert: GlpiHttpDown
+        expr: probe_success{job="blackbox_http", instance="http://10.10.80.110/"} == 0
+        for: 3m
+        labels: { severity: critical, scope: apps }
+        annotations:
+          summary: "GLPI (10.10.80.110) ne repond plus en HTTP"
+          description: "Sondé par blackbox_exporter depuis 3 min. Verifier service apache/php sur GLPI01 (VLAN 80)."
+
+      - alert: WsusSyncStale
+        expr: wsus_last_sync_seconds_ago / 86400 > 2
+          or probe_success{instance="10.10.20.111:8530"} == 0
+        for: 30m
+        labels: { severity: warning, scope: patching }
+        annotations:
+          summary: "WSUS01 : synchronisation > 2 jours ou port 8530 injoignable"
+          description: "Le pilotage des mises a jour (DC VLAN 20) n'est plus fiable — relancer la synchro manuelle."
+
+      - alert: DmzReverseProxyDown
+        expr: probe_success{job="blackbox_http", instance="http://10.10.90.10/"} == 0
+        for: 2m
+        labels: { severity: critical, scope: perimeter }
+        annotations:
+          summary: "Reverse proxy DMZ dmz-rp-01 (10.10.90.10) HS"
+          description: "Les services publiés (NAT WatchGuard) sont inaccessibles."
+
+      - alert: CoreHttpServicesDown
+        expr: probe_success{job="blackbox_http", instance=~".*(10.10.60.11|10.10.60.20).*"} == 0
+        for: 5m
+        labels: { severity: warning, scope: monitoring }
+        annotations:
+          summary: "Interface de supervision indisponible : {{ $labels.instance }}"
+          description: "Grafana ou Zabbix ne répond plus : perte de visibilité en cours."
+
+  # ---------------------------------------------------------------------------
+  - name: certificats
+    rules:
+      - alert: CertificatBientotExpire
+        expr: (probe_ssl_earliest_cert_expiry{job=~"blackbox.*tls.*"} - time()) / 86400 < 21
+        for: 1h
+        labels: { severity: warning, scope: certificate }
+        annotations:
+          summary: "Certificat expire dans {{ $value | printf \"%.0f\" }} jours sur {{ $labels.instance }}"
+          description: "Renouveler avant 21 j (DMZ : certificat public du reverse proxy ; interne : CA example.local)."
+
+      - alert: CertificatExpire
+        expr: probe_ssl_earliest_cert_expiry{job=~"blackbox.*tls.*"} - time() < 0
+        labels: { severity: critical, scope: certificate }
+        annotations:
+          summary: "Certificat EXPIRE sur {{ $labels.instance }}"
+          description: "Rupture TLS immediate — renvoyer la chaine depuis la CA EXAMPLE."

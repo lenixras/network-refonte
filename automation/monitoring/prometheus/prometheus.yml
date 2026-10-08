@@ -1,0 +1,203 @@
+# =============================================================================
+# prometheus.yml — Configuration Prometheus de mon-prom-01 (10.10.60.10)
+#   Cibles = IPs exactes du plan d'adressage (docs/00-architecture-reference.md
+#   §4/§5/§8). Aucune secret dans ce fichier : les tokens vivent dans .env
+#   (basic_auth via file_sd secrets ou consul-secrets en production).
+#
+# USAGE (déploiement) : voir monitoring/deploy-exporters.yml (play
+#   « Prometheus + Blackbox + SNMP »). Reload : pkill -HUP prometheus.
+# =============================================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "pve-example"
+    domain: "example.local"
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["10.10.60.12:9093"]   # mon-alert-01 (VLAN 60)
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # 1. Prometheus lui-meme + Alertmanager (self-monitoring)
+  # ---------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["10.10.60.10:9090"]
+        labels: { host: "mon-prom-01", vlan: "60" }
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["10.10.60.12:9093"]
+        labels: { host: "mon-alert-01", vlan: "60" }
+
+  # ---------------------------------------------------------------------------
+  # 2. node_exporter (:9100) — hyperviseurs PVE + serveurs Linux du plan
+  # ---------------------------------------------------------------------------
+  - job_name: node_exporter
+    static_configs:
+      - targets: ["10.10.20.10:9100", "10.10.20.11:9100"]
+        labels: { class: "hyperviseur", os: "proxmox-ve-8.2", vlan: "20" }
+      - targets: ["10.10.50.10:9100"]                # PBS01
+        labels: { class: "backup", os: "pbs-3.1", vlan: "50" }
+      - targets: ["10.10.60.10:9100", "10.10.60.11:9100",
+                  "10.10.60.12:9100", "10.10.60.20:9100"]
+        labels: { class: "monitoring", os: "debian-12", vlan: "60" }
+      - targets: ["10.10.80.101:9100", "10.10.80.110:9100"]   # APP01, GLPI01
+        labels: { class: "apps", os: "debian-12", vlan: "80" }
+      - targets: ["10.10.90.10:9100"]                # dmz-rp-01
+        labels: { class: "dmz", os: "debian-12", vlan: "90" }
+
+  # ---------------------------------------------------------------------------
+  # 3. windows_exporter (:9182) — DC01/DC02/FILE01/WSUS01 (VLAN 20)
+  # ---------------------------------------------------------------------------
+  - job_name: windows_exporter
+    static_configs:
+      - targets:
+          - "10.10.20.101:9182"   # DC01
+          - "10.10.20.102:9182"   # DC02
+          - "10.10.20.110:9182"   # FILE01
+          - "10.10.20.111:9182"   # WSUS01
+        labels: { class: "windows", os: "ws2022", vlan: "20" }
+
+  # ---------------------------------------------------------------------------
+  # 4. PVE exporter (:9221) — API cluster Proxmox (nœuds pve01/pve02)
+  #    L'exporter tourne sur chaque nœud et remonte les VM/stockage du
+  #    cluster ; les cibles API sont 10.10.20.10 et 10.10.20.11 (cf. plan §4).
+  # ---------------------------------------------------------------------------
+  - job_name: pve_exporter
+    metrics_path: /pve
+    params:
+      module: [default]
+    static_configs:
+      - targets: ["10.10.20.10:9221"]
+        labels: { pve_node: "pve01" }
+      - targets: ["10.10.20.11:9221"]
+        labels: { pve_node: "pve02" }
+
+  # ---------------------------------------------------------------------------
+  # 5. blackbox_exporter (:9115, sur mon-prom-01) — services metier
+  # ---------------------------------------------------------------------------
+  - job_name: blackbox_http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - "http://10.10.80.110/"       # GLPI01 — interface web tickets
+          - "http://10.10.60.11:3000/"   # Grafana
+          - "http://10.10.60.20/zabbix/" # Zabbix UI
+          - "http://10.10.90.10/"        # dmz-rp-01 (reverse proxy)
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9115"
+
+  - job_name: blackbox_wsus_tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - "10.10.20.111:8530"    # WSUS01 — port SYNC (plan : WSUS sur DC VLAN 20)
+          - "10.10.20.101:389"     # DC01 — LDAP
+          - "10.10.20.102:389"     # DC02 — LDAP
+          - "10.10.50.20:445"      # nas01 — SMB (cible de sauvegarde)
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9115"
+
+  - job_name: blackbox_icmp_perimetre
+    metrics_path: /probe
+    params:
+      module: [icmp]
+    static_configs:
+      - targets:
+          - "10.10.10.1"       # passerelle Core VLAN 10
+          - "10.10.10.2"       # core-sw-01 (VSF)
+          - "10.10.10.254"     # WatchGuard — interco MGMT
+          - "10.10.20.10"      # pve01
+          - "10.10.20.11"      # pve02
+          - "10.10.50.20"      # nas01
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9115"
+
+  # ---------------------------------------------------------------------------
+  # 6. snmp_exporter (:9116, sur mon-prom-01) — equipements reseau en SNMPv3
+  #    (auth/priv via .env : SNMPV3_USERNAME / _AUTH_PASSPHRASE / _PRIV_PASSPHRASE ;
+  #    modules d'auth definis dans /etc/snmp_exporter/snmp.yml — cf. snmp/)
+  # ---------------------------------------------------------------------------
+  - job_name: snmp_switchs
+    metrics_path: /snmp
+    params:
+      module: [aruba_cx]        # cf. monitoring/snmp/snmp-v3.md
+      auth: [snmp_v3_example]
+    static_configs:
+      - targets: ["10.10.10.2"]    # core-sw-01 (Aruba CX 6300 VSF)
+        labels: { device: "core-sw-01" }
+      - targets: ["10.10.10.11"]   # acc-sw-a1
+        labels: { device: "acc-sw-a1" }
+      - targets: ["10.10.10.12"]   # acc-sw-b1
+        labels: { device: "acc-sw-b1" }
+      - targets: ["10.10.10.13"]   # acc-sw-c1
+        labels: { device: "acc-sw-c1" }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9116"
+
+  - job_name: snmp_fw_wan
+    metrics_path: /snmp
+    params:
+      module: [watchguard_firebox]
+      auth: [snmp_v3_example]
+    static_configs:
+      - targets: ["10.10.10.254"]  # WatchGuard M270 (FWWG) — interco MGMT
+        labels: { device: "fwwg" }
+      # MikroTik hEX S (CPE Telma) : le plan ne publie pas d'IP de management
+      # (derriere le FW, IP publique cachee PUBLIC_IP_REDACTED). Ajouter ici
+      # l'IP interne retenue sur site avant d'activer le module mikrotik_hex.
+      # - targets: ["<IP-INTERNE-MIKROTIK-A-CONFIRMER>"]
+      #   labels: { device: "mikrotik-telma" }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9116"
+
+  - job_name: snmp_nas
+    metrics_path: /snmp
+    params:
+      module: [synology_dsm]
+      auth: [snmp_v3_example]
+    static_configs:
+      - targets: ["10.10.50.20"]   # nas01.example.local (VLAN 50)
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "10.10.60.10:9116"

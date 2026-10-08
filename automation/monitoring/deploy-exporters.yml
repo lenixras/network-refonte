@@ -1,0 +1,264 @@
+# =============================================================================
+# deploy-exporters.yml — Deploiement de la pile d'exporters Prometheus
+#                        (node_exporter, windows_exporter, pve-exporter,
+#                        blackbox_exporter, snmp_exporter) sur l'infrastructure
+#                        example.local decrite dans docs/00-architecture-reference.md.
+#
+# PURPOSE (exemple public — portfolio) :
+#   Le §8 du plan exige : node_exporter (Linux), windows_exporter (Windows),
+#   pve-exporter (Proxmox), blackbox_exporter (HTTP/TCP/ICMP) et SNMP v3.
+#   Ce playbook installe et configure les cibles; la config Prometheus
+#   ciblee par les scrape est dans monitoring/prometheus/prometheus.yml.
+#
+# PREREQUIS :
+#   - ansible-core 2.16+ ; inventaire automation/monitoring/inventory/hosts.ini
+#   - Cles SSH pour les hotes Linux, WinRM (ou ssh+choco via vagrant-like) pour
+#     les hotes Windows ; secrets dans .env (ansible vars depuis env)
+#   - Les VM cibles sont celles du plan (VMID 101..501, VLAN 20/50/60/80/90)
+#
+# DONNEES ANONYMISEES : example.local ; le token API PVE est passe par
+#   l'environnement (PVE_TOKEN / PVE_TOKEN_ID) — jamais en dur.
+#
+# USAGE :
+#   source ../.env    # PVE_TOKEN_ID, PVE_TOKEN, SNMPV3_* etc.
+#   ansible-playbook -i inventory/hosts.ini deploy-exporters.yml --check --diff
+#   ansible-playbook -i inventory/hosts.ini deploy-exporters.yml
+# =============================================================================
+---
+- name: Exporters Linux (node_exporter) — hotes Debian + nœuds PVE
+  hosts: linux_nodes
+  become: true
+  vars:
+    node_exporter_version: "1.8.2"
+  tasks:
+    - name: Paquets requis (systemd, curl)
+      ansible.builtin.apt:
+        name: [curl, ca-certificates]
+        state: present
+
+    - name: Cree l'utilisateur systeme node_exporter
+      ansible.builtin.user:
+        name: node_exporter
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Telecharge node_exporter (version epinglee, vérif checksum en production)
+      ansible.builtin.get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Deplie le binaire
+      ansible.builtin.unarchive:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        creates: /usr/local/bin/node_exporter
+
+    - name: Unite systemd node_exporter (port 9100, collectors reseau/disque)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network.target
+          [Service]
+          User=node_exporter
+          ExecStart=/usr/local/bin/node_exporter \
+            --collector.tcpstat --collector.systemd \
+            --web.listen-address=:9100
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+      notify: reload systemd
+
+    - name: Active node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+# -----------------------------------------------------------------------------
+- name: PVE exporter — uniquement les nœuds hyperviseurs pve01/pve02
+  hosts: pve_nodes
+  become: true
+  vars:
+    # Token API PVE : fourni par l'environnement (.env), jamais en dur.
+    pve_token_id: "{{ lookup('env', 'PVE_TOKEN_ID') }}"     # ex: backup-monitor@pve!monitoring
+    pve_token: "{{ lookup('env', 'PVE_TOKEN') }}"
+  tasks:
+    - name: Cree l'utilisateur systeme pve-exporter
+      ansible.builtin.user:
+        name: pve-exporter
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Installe prometheus-pve-exporter (pip)
+      ansible.builtin.pip:
+        name: prometheus-pve-exporter
+        state: present
+
+    - name: "Config /etc/pve_exporter.yml (multi-nodes : 10.10.20.10 + 10.10.20.11)"
+      ansible.builtin.copy:
+        dest: /etc/pve_exporter.yml
+        mode: "0600"
+        owner: root
+        content: |
+          # L'exporter interroge l'API PVE ; verify_ssl faux uniquement si CA
+          # interne fournie via env — a revoir si certificat public.
+          default:
+            verify_ssl: false
+            token: "{{ pve_token_id }}"
+            token_password: "{{ pve_token }}"
+      when: pve_token | length > 0
+      no_log: true
+
+    - name: Unite systemd pve-exporter (port 9221, cible API pve01 local)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/pve_exporter.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Prometheus PVE Exporter
+          After=network-online.target
+          [Service]
+          User=pve-exporter
+          ExecStart=/usr/local/bin/pve_exporter --config /etc/pve_exporter.yml --port 9221
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart pve exporter
+
+    - name: Active l'exporter PVE
+      ansible.builtin.systemd:
+        name: pve_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: restart pve exporter
+      ansible.builtin.systemd:
+        name: pve_exporter
+        state: restarted
+
+# -----------------------------------------------------------------------------
+- name: Exporters Windows — DC01/DC02/FILE01/WSUS01 (windows_exporter)
+  hosts: windows_nodes
+  gather_facts: false
+  tasks:
+    - name: Installe windows_exporter via Chocolatey (si choco present)
+      ansible.windows.win_chocolatey:
+        name: windows_exporter
+        state: present
+        package_params: "--collectors.cpu,memory,process,tcp,ad,cs,logical_disk,net,os,service,system,iis"
+      # Secours sans choco : win_get_url + msiexec (commente volontairement)
+      # ansible.windows.win_package:
+      #   path: C:\tmp\windows_exporter-0.28.0-amd64.msi
+      #   arguments: /quiet --collectors.enable cpu,memory,net
+
+    - name: Verifie que le service tourne (port 9182)
+      ansible.windows.win_service:
+        name: windows_exporter
+        state: started
+        start_mode: auto
+
+# -----------------------------------------------------------------------------
+- name: Prometheus + Blackbox + SNMP exporters sur mon-prom-01 (10.10.60.10)
+  hosts: prometheus_host
+  become: true
+  vars:
+    blackbox_version: "0.25.0"
+  tasks:
+    - name: Cree les utilisateurs systeme
+      ansible.builtin.user:
+        name: "{{ item }}"
+        system: true
+        shell: /usr/sbin/nologin
+      loop: [blackbox_exporter, snmp_exporter]
+
+    - name: Telecharge et deploie blackbox_exporter
+      ansible.builtin.unarchive:
+        src: "https://github.com/prometheus/blackbox_exporter/releases/download/v{{ blackbox_version }}/blackbox_exporter-{{ blackbox_version }}.linux-amd64.tar.gz"
+        remote_src: true
+        dest: /usr/local/bin
+        extra_opts: [--strip-components=1]
+        creates: /usr/local/bin/blackbox_exporter
+
+    - name: Installe la configuration de sondes (http_2xx, tcp_connect, icmp)
+      ansible.builtin.copy:
+        src: prometheus/blackbox/blackbox.yml
+        dest: /etc/blackbox_exporter/blackbox.yml
+        mode: "0644"
+
+    - name: Unites systemd blackbox_exporter + snmp_exporter
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ item.key }}"
+        mode: "0644"
+        content: "{{ item.value }}"
+      loop:
+        - key: blackbox_exporter.service
+          value: |
+            [Unit]
+            Description=Prometheus Blackbox Exporter
+            After=network-online.target
+            [Service]
+            User=blackbox_exporter
+            ExecStart=/usr/local/bin/blackbox_exporter \
+              --config.file=/etc/blackbox_exporter/blackbox.yml \
+              --web.listen-address=:9115
+            Restart=always
+            [Install]
+            WantedBy=multi-user.target
+        - key: snmp_exporter.service
+          value: |
+            [Unit]
+            Description=Prometheus SNMP Exporter
+            After=network-online.target
+            [Service]
+            User=snmp_exporter
+            # Generateur : snmp-exporter-yamlgen ; auth SNMPv3 via .env
+            # (SNMPV3_USERNAME / SNMPV3_AUTH_PASSPHRASE / SNMPV3_PRIV_PASSPHRASE)
+            ExecStart=/usr/local/bin/snmp_exporter \
+              --config.file=/etc/snmp_exporter/snmp.yml \
+              --web.listen-address=:9116
+            Restart=always
+            [Install]
+            WantedBy=multi-user.target
+      loop_control:
+        label: "{{ item.key }}"
+      notify: reload exporters
+
+    - name: Decharge la configuration Prometheus du depot (as-code)
+      ansible.builtin.copy:
+        src: prometheus/prometheus.yml
+        dest: /etc/prometheus/prometheus.yml
+        mode: "0644"
+      notify: reload prometheus
+
+    - name: Decharge les regles d'alerte reseau
+      ansible.builtin.copy:
+        src: prometheus/alerts/rules-network.yml
+        dest: /etc/prometheus/alerts/rules-network.yml
+        mode: "0644"
+      notify: reload prometheus
+
+  handlers:
+    - name: reload exporters
+      ansible.builtin.systemd:
+        name: "{{ item }}.service"
+        state: restarted
+        daemon_reload: true
+      loop: [blackbox_exporter, snmp_exporter]
+    - name: reload prometheus
+      ansible.builtin.command: pkill -HUP prometheus

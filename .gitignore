@@ -1,0 +1,47 @@
+# ── Secrets / données sensibles (JAMAIS commités) ──────────────────
+.env
+.env.*
+*.env
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa*
+id_ed25519*
+*.kdbx            # bases de mots de passe
+secrets/
+credentials/
+*.secret
+tokens/
+
+# ── Export de configs réelles (préférer les exemples anonymisés) ────
+configs/**/real/
+configs/**/*.running-config.real
+*.backup-real
+
+# ── Captures non floutées ──────────────────────────────────────────
+screenshots/_raw/
+screenshots/**/*.raw.png
+screenshots/**/*.unredacted.*
+
+# ── Artefacts locaux / OS / éditeurs ────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*~
+.idea/
+.vscode/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── Build des animations (si bundlé un jour) ────────────────────────
+diagrams/**/dist/
+diagrams/**/build/

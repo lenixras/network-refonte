@@ -1,0 +1,35 @@
+# Workflow GitHub — sécurité du dépôt public
+# - scan des secrets (gitleaks) pour garantir l'anonymisation
+# - validation des liens de la documentation
+name: security-scan
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 3 * * 1'   # hebdo
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # .gitleaks.toml autorise les placeholders anonymisés du portfolio
+
+  links:
+    name: Check documentation links
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          folder-path: 'docs'
+          config-file: '.markdownlinkcheck.json'

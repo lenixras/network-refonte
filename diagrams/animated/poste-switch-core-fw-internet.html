@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flux Poste → Switch → Core → WatchGuard → Internet — diagramme animé</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#dce4f0;
+    --line:#94a3b8; --blue:#2563eb; --violet:#7c3aed; --green:#059669; --amber:#d97706; --red:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .ttl{font-size:13px;font-weight:600;fill:var(--ink)}
+  .sttl{font-size:10.5px;fill:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;fill:var(--ink)}
+  .cap{font-size:9px;fill:var(--muted)}
+  .nbox{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .core{stroke:var(--blue);stroke-width:2}
+  .lan{stroke:var(--blue)} .wan{stroke:var(--violet)}
+  .link{stroke-width:2;fill:none}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .k{display:inline-block;width:18px;height:3px;border-radius:2px}
+  .kd{display:inline-block;width:9px;height:9px;border-radius:50%}
+  .kb{display:inline-block;width:12px;height:10px;border:1.5px solid var(--line);border-radius:3px;background:#fff}
+  #rm-indicator{display:none;margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px}
+  body.reduced #rm-indicator{display:block}
+  /* État de base = statique (fallback sans JS et sans animation) */
+  .packet{display:none}
+
+  @media (prefers-reduced-motion: no-preference){
+    .link{stroke-dasharray:7 7;animation:flow 1.1s linear infinite}
+    @keyframes flow{to{stroke-dashoffset:-14}}
+    @supports (offset-path: path('M0 0 L10 0')){
+      .packet{display:block;offset-rotate:0deg;animation:travel 3.9s linear infinite}
+      .p2{animation-delay:1.3s} .p3{animation-delay:2.6s}
+      @keyframes travel{
+        0%{offset-distance:0%;opacity:0}
+        5%{opacity:1}
+        95%{opacity:1}
+        100%{offset-distance:100%;opacity:0}
+      }
+    }
+  }
+  .pkt{fill:var(--blue)}
+  .pkt.w{fill:var(--violet)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Flux poste → switch access → core → firewall → Internet</h1>
+  <p class="sub">Circulation d'un paquet depuis un poste du VLAN 30 USERS jusqu'Internet via le WatchGuard.
+  Source de vérité : <code>docs/00-architecture-reference.md</code> — données anonymisées.</p>
+
+  <div class="card">
+    <svg viewBox="0 0 1000 258" role="img" aria-label="Flux poste vers Internet à travers le switch d'accès, le core et le firewall">
+      <defs>
+        <marker id="arr-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="#2563eb"/>
+        </marker>
+        <marker id="arr-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="#7c3aed"/>
+        </marker>
+      </defs>
+
+      <!-- liens entre équipements (dessinés sous les boîtes : le paquet « saute » de nœud en nœud) -->
+      <line class="link lan" x1="172" y1="136" x2="206" y2="136" marker-end="url(#arr-b)"/>
+      <line class="link lan" x1="374" y1="136" x2="408" y2="136" marker-end="url(#arr-b)"/>
+      <line class="link wan" x1="576" y1="136" x2="610" y2="136" marker-end="url(#arr-v)"/>
+      <line class="link wan" x1="778" y1="136" x2="812" y2="136" marker-end="url(#arr-v)"/>
+
+      <text class="cap" x="178" y="122">VLAN 30</text>
+      <text class="cap" x="376" y="122">trunk 802.1Q</text>
+      <text class="cap" x="586" y="122">L3 · 10.10.10.254</text>
+      <text class="cap" x="784" y="122">NAT/PAT</text>
+
+      <!-- paquets en transit (visibles uniquement en mouvement ; masqués en mouvement réduit) -->
+      <circle class="packet pkt" r="6" cx="0" cy="0" style="offset-path:path('M 172 136 L 412 136')"/>
+      <circle class="packet pkt w" r="6" cx="0" cy="0" style="offset-path:path('M 576 136 L 816 136');animation-delay:.65s"/>
+      <circle class="packet pkt" r="6" cx="0" cy="0" style="offset-path:path('M 172 136 L 412 136');animation-delay:1.95s"/>
+
+      <!-- équipements -->
+      <g>
+        <rect class="nbox" x="8" y="104" width="164" height="64" rx="10"/>
+        <text class="ttl" x="90" y="130" text-anchor="middle">Poste</text>
+        <text class="sttl" x="90" y="146" text-anchor="middle">VLAN 30 USERS</text>
+        <text class="mono" x="90" y="160" text-anchor="middle">DHCP 10.10.30.100–200</text>
+      </g>
+      <g>
+        <rect class="nbox" x="210" y="104" width="164" height="64" rx="10"/>
+        <text class="ttl" x="292" y="130" text-anchor="middle">Switch Access</text>
+        <text class="sttl" x="292" y="146" text-anchor="middle">Aruba CX 6100 PoU — Zone A</text>
+        <text class="mono" x="292" y="160" text-anchor="middle">acc-sw-a1 · 10.10.10.11</text>
+      </g>
+      <g>
+        <rect class="nbox core" x="412" y="104" width="164" height="64" rx="10"/>
+        <text class="ttl" x="494" y="130" text-anchor="middle">Core L3 (VSF)</text>
+        <text class="sttl" x="494" y="146" text-anchor="middle">Aruba CX 6300 · 2 membres</text>
+        <text class="mono" x="494" y="160" text-anchor="middle">core-sw-01 · 10.10.10.2</text>
+      </g>
+      <g>
+        <rect class="nbox core" x="614" y="104" width="164" height="64" rx="10"/>
+        <text class="ttl" x="696" y="130" text-anchor="middle">Firewall</text>
+        <text class="sttl" x="696" y="146" text-anchor="middle">WatchGuard Firebox M270</text>
+        <text class="mono" x="696" y="160" text-anchor="middle">interco · 10.10.10.254</text>
+      </g>
+      <g>
+        <rect class="nbox" x="816" y="104" width="164" height="64" rx="10"/>
+        <text class="ttl" x="898" y="130" text-anchor="middle">Internet</text>
+        <text class="sttl" x="898" y="146" text-anchor="middle">Orange · Telma · Starlink</text>
+        <text class="mono" x="898" y="160" text-anchor="middle">PUBLIC_IP_REDACTED</text>
+      </g>
+    </svg>
+
+    <div class="legend">
+      <span><i class="k" style="background:var(--blue)"></i> Tronçon LAN (VLAN 30 → core)</span>
+      <span><i class="k" style="background:var(--violet)"></i> Tronçon périmètre (core → FAI)</span>
+      <span><i class="kd" style="background:var(--blue)"></i> Paquet en transit</span>
+      <span><i class="kb"></i> Équipement</span>
+      <span>Boîte à trait bleu foncé : nœud de routage</span>
+    </div>
+    <div id="rm-indicator" role="status">⚠ Mouvement réduit détecté — flux figé, seule la topologie statique est affichée.</div>
+  </div>
+  <p class="sub" style="margin-top:12px">Rappels : la passerelle par défaut de tous les VLAN est le Core (SVI) ; la route
+  <code>0.0.0.0/0</code> pointe vers le WatchGuard <code>10.10.10.254</code> ; la sortie Internet est NAT/PAT derrière
+  <code>PUBLIC_IP_REDACTED</code>.</p>
+</div>
+<script>
+(function(){
+  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){ document.body.classList.toggle('reduced', mq.matches); }
+  if (mq.addEventListener) { mq.addEventListener('change', apply); } else { mq.addListener(apply); }
+  apply();
+})();
+</script>
+</body>
+</html>

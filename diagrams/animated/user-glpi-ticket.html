@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cycle de vie d'un ticket GLPI — machine à états animée</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#dce4f0;
+    --line:#94a3b8; --blue:#2563eb; --violet:#7c3aed; --green:#059669; --amber:#d97706; --red:#dc2626; --teal:#0d9488;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .nbox{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .ttl{font-size:13px;font-weight:600;fill:var(--ink)}
+  .sttl{font-size:10.5px;fill:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;fill:var(--ink)}
+  .stt{font-size:12px;font-weight:700;fill:var(--ink)}
+  .link{stroke:var(--line);stroke-width:2;fill:none}
+  .hl{opacity:0}
+  .ticket{fill:var(--violet)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .kd{display:inline-block;width:9px;height:9px;border-radius:50%}
+  .kb{display:inline-block;width:12px;height:10px;border-radius:3px}
+  #rm-indicator{display:none;margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px}
+  body.reduced #rm-indicator{display:block}
+
+  /* Base statique = ticket clôturé (état final) */
+  .hl5{opacity:1}
+  .dot-static{display:block}
+  .dot-anim{display:none}
+
+  @media (prefers-reduced-motion: no-preference){
+    .dot-static{display:none}
+    .dot-anim{display:block;offset-rotate:0deg;animation:tour 15s linear infinite}
+    @keyframes tour{
+      0%{offset-distance:0%} 10%{offset-distance:0%}
+      20%{offset-distance:25%} 30%{offset-distance:25%}
+      40%{offset-distance:50%} 50%{offset-distance:50%}
+      60%{offset-distance:75%} 70%{offset-distance:75%}
+      80%{offset-distance:100%} 100%{offset-distance:100%}
+    }
+    .hl1{animation:h1 15s linear infinite}.hl2{animation:h2 15s linear infinite}
+    .hl3{animation:h3 15s linear infinite}.hl4{animation:h4 15s linear infinite}
+    .hl5{animation:h5 15s linear infinite}
+    @keyframes h1{0%,4%{opacity:0}6%,18%{opacity:1}22%,100%{opacity:0}}
+    @keyframes h2{0%,18%{opacity:0}22%,34%{opacity:1}38%,100%{opacity:0}}
+    @keyframes h3{0%,34%{opacity:0}38%,54%{opacity:1}58%,100%{opacity:0}}
+    @keyframes h4{0%,54%{opacity:0}58%,74%{opacity:1}78%,100%{opacity:0}}
+    @keyframes h5{0%,74%{opacity:0}78%,100%{opacity:1}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Un utilisateur ouvre GLPI — cycle de vie du ticket (Nouveau → Clos)</h1>
+  <p class="sub">Machine à états ITIL exécutée sur GLPI01 (<code>10.10.80.110</code>, VLAN 80).
+  Source : <code>docs/00-architecture-reference.md</code> §4–5 et <code>docs/monitoring.md</code> §1.</p>
+
+  <div class="card">
+    <svg viewBox="0 0 1000 390" role="img" aria-label="Machine à états d'un ticket GLPI de la création à la clôture">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#94a3b8"/></marker>
+      </defs>
+
+      <!-- contexte d'accès -->
+      <g><rect class="nbox" x="20" y="24" width="200" height="70" rx="10"/>
+        <text class="ttl" x="120" y="50" text-anchor="middle">Utilisateur — VLAN 30</text>
+        <text class="mono" x="120" y="68" text-anchor="middle">poste 10.10.30.x</text>
+        <text class="sttl" x="120" y="84" text-anchor="middle">session AD validée</text></g>
+      <line class="link" x1="220" y1="59" x2="316" y2="59" marker-end="url(#arr)"/>
+      <text class="sttl" x="230" y="50">HTTP — 10.10.80.110</text>
+      <g><rect class="nbox" x="320" y="24" width="250" height="70" rx="10" stroke="#7c3aed" stroke-width="2"/>
+        <text class="ttl" x="445" y="50" text-anchor="middle">GLPI01 — GLPI 10.0.x</text>
+        <text class="mono" x="445" y="68" text-anchor="middle">10.10.80.110 · VLAN 80 · Debian 12</text>
+        <text class="sttl" x="445" y="84" text-anchor="middle">publié aux externes via dmz-rp-01</text></g>
+      <line class="link" x1="445" y1="94" x2="445" y2="150" marker-end="url(#arr)"/>
+      <text class="sttl" x="452" y="128">création du ticket</text>
+
+      <!-- chaîne d'états -->
+      <line class="link" x1="180" y1="240" x2="225" y2="240" marker-end="url(#arr)"/>
+      <line class="link" x1="375" y1="240" x2="420" y2="240" marker-end="url(#arr)"/>
+      <line class="link" x1="570" y1="240" x2="615" y2="240" marker-end="url(#arr)"/>
+      <line class="link" x1="765" y1="240" x2="810" y2="240" marker-end="url(#arr)"/>
+
+      <g><rect class="nbox" x="30" y="210" width="150" height="60" rx="10"/>
+        <rect class="hl hl1" x="30" y="210" width="150" height="60" rx="10" fill="#e2e8f0" stroke="#334155" stroke-width="2.5"/>
+        <text class="stt" x="105" y="236" text-anchor="middle">① Nouveau</text>
+        <text class="sttl" x="105" y="254" text-anchor="middle">#4820 · Zone B</text></g>
+      <g><rect class="nbox" x="225" y="210" width="150" height="60" rx="10"/>
+        <rect class="hl hl2" x="225" y="210" width="150" height="60" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2.5"/>
+        <text class="stt" x="300" y="236" text-anchor="middle">② Assigné</text>
+        <text class="sttl" x="300" y="254" text-anchor="middle">file IT · qualification</text></g>
+      <g><rect class="nbox" x="420" y="210" width="150" height="60" rx="10"/>
+        <rect class="hl hl3" x="420" y="210" width="150" height="60" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2.5"/>
+        <text class="stt" x="495" y="236" text-anchor="middle">③ En cours</text>
+        <text class="sttl" x="495" y="254" text-anchor="middle">intervention sur site</text></g>
+      <g><rect class="nbox" x="615" y="210" width="150" height="60" rx="10"/>
+        <rect class="hl hl4" x="615" y="210" width="150" height="60" rx="10" fill="#ccfbf1" stroke="#0d9488" stroke-width="2.5"/>
+        <text class="stt" x="690" y="236" text-anchor="middle">④ Résolu</text>
+        <text class="sttl" x="690" y="254" text-anchor="middle">validation utilisateur</text></g>
+      <g><rect class="nbox" x="810" y="210" width="150" height="60" rx="10"/>
+        <rect class="hl hl5" x="810" y="210" width="150" height="60" rx="10" fill="#dcfce7" stroke="#059669" stroke-width="2.5"/>
+        <text class="stt" x="885" y="236" text-anchor="middle">⑤ Clos</text>
+        <text class="sttl" x="885" y="254" text-anchor="middle">consigné · KB</text></g>
+
+      <!-- jeton ticket -->
+      <g class="dot-anim">
+        <circle class="ticket" r="8" cx="0" cy="0" style="offset-path:path('M 105 240 L 885 240')"/>
+      </g>
+      <circle class="dot-static ticket" r="8" cx="885" cy="240"/>
+
+      <text class="sttl" x="20" y="330">Traçabilité ITIL : une alerte critique de l'Alertmanager peut aussi ouvrir un incident GLPI automatiquement
+      (e-mail + webhook WEBHOOK_REDACTED côté notification).</text>
+      <text class="mono" x="20" y="352" fill="#64748b">Règle périmètre : accès externe GLPI uniquement via reverse proxy DMZ (10.10.90.10) — jamais de publication directe de GLPI01.</text>
+    </svg>
+
+    <div class="legend">
+      <span><i class="kd" style="background:var(--violet)"></i> Jeton = ticket en cours de cycle</span>
+      <span><i class="kb" style="background:#fef3c7;border:2px solid var(--amber)"></i> État actif (surbrillance)</span>
+      <span><i class="kb" style="background:#dcfce7;border:2px solid var(--green)"></i> État final — Clos</span>
+      <span>Bleu : assignation · Vert d'eau : résolution</span>
+    </div>
+    <div id="rm-indicator" role="status">⚠ Mouvement réduit détecté — pas de cycle animé : le ticket est affiché dans son état final (Clos).</div>
+  </div>
+</div>
+<script>
+(function(){
+  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){ document.body.classList.toggle('reduced', mq.matches); }
+  if (mq.addEventListener) { mq.addEventListener('change', apply); } else { mq.addListener(apply); }
+  apply();
+})();
+</script>
+</body>
+</html>

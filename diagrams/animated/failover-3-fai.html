@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Failover 3 FAI — Orange / Telma / Starlink — diagramme animé</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#dce4f0;
+    --line:#94a3b8; --blue:#2563eb; --teal:#0d9488; --violet:#7c3aed; --green:#059669;
+    --amber:#d97706; --red:#dc2626; --slate:#334155;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .ttl{font-size:13.5px;font-weight:600;fill:var(--ink)}
+  .sttl{font-size:10.5px;fill:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;fill:var(--ink)}
+  .nbox{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .link{fill:none;stroke-width:2.5}
+  .chip{font-size:10px;font-weight:700}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .k{display:inline-block;width:18px;height:3px;border-radius:2px}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  button{font:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--slate)}
+  button.danger{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+  #banner{margin-top:12px;font-size:13px;border-radius:8px;padding:9px 12px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534}
+  #banner.warn{border-color:#fed7aa;background:#fff7ed;color:#9a3412}
+  #banner.crit{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+  #rm-indicator{display:none;margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px}
+  body.reduced #rm-indicator{display:block}
+
+  /* ---- État de base (statique, sans JS) : nominal active/active/standby ---- */
+  .st-ok-orange, .st-ok-telma, .st-ok-star {fill:var(--green)}
+  .st-dn-orange, .st-dn-telma, .st-act-star{display:none}
+  .flow{display:none}
+
+  /* ---- État : panne Orange ---- */
+  #net.ko-orange .link-orange{stroke:var(--red);stroke-dasharray:4 6}
+  #net.ko-orange .st-ok-orange{display:none}
+  #net.ko-orange .st-dn-orange{display:inline}
+  #net.ko-orange .link-telma{stroke-width:4}
+  #net.ko-orange .box-star{stroke:var(--line)}
+
+  /* ---- État : panne Telma seule (Orange absorbe le trafic) ---- */
+  #net.ko-telma-only .link-telma{stroke:var(--red);stroke-dasharray:4 6}
+  #net.ko-telma-only .st-ok-telma{display:none}
+  #net.ko-telma-only .st-dn-telma{display:inline}
+  #net.ko-telma-only .link-orange{stroke-width:4}
+
+  /* ---- État : pannes Orange + Telma → Starlink actif ---- */
+  #net.ko-both .link-orange{stroke:var(--red);stroke-dasharray:4 6}
+  #net.ko-both .link-telma{stroke:var(--red);stroke-dasharray:4 6}
+  #net.ko-both .st-ok-orange{display:none}
+  #net.ko-both .st-dn-orange{display:inline}
+  #net.ko-both .st-ok-telma{display:none}
+  #net.ko-both .st-dn-telma{display:inline}
+  #net.ko-both .st-ok-star{display:none}
+  #net.ko-both .st-act-star{display:inline}
+  #net.ko-both .box-star{stroke:var(--violet);stroke-width:2.5;fill:#f5f3ff}
+
+  /* ---- Mouvement autorisé uniquement si l'utilisateur ne le réduit pas ---- */
+  @media (prefers-reduced-motion: no-preference){
+    .flow{display:block}
+    .flow circle{offset-rotate:0deg;animation:travel 2.4s linear infinite}
+    @keyframes travel{0%{offset-distance:0%;opacity:0}8%{opacity:1}92%{opacity:1}100%{offset-distance:100%;opacity:0}}
+    .pulse{animation:pulse 2.2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:0}50%{opacity:1}}
+    /* lien nominal : flux Orange ; témoins Telma actifs ; Starlink silencieux tant qu'il est standby */
+    #net .link-orange:not([data-off]), .flow-orange{display:block}
+    #net .flow-telma{display:block}
+    #net .flow-star{display:none}
+    #net.ko-orange .flow-orange{display:none}
+    #net.ko-telma-only .flow-telma{display:none}
+    #net.ko-orange .link-orange + .flow-star{display:none}
+    #net.ko-both .flow-orange,#net.ko-both .flow-telma{display:none}
+    #net.ko-both .flow-star{display:block}
+    #net.ko-both .pulse{display:none}
+    #net .pulse{display:none}
+    #net.ko-both .star-glow{display:block}
+    .star-glow{display:none}
+  }
+  @media (prefers-reduced-motion: reduce){
+    #net.ko-both .box-star{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Failover des 3 FAI — politique active / active / standby</h1>
+  <p class="sub">Orange (principal, ~60 %) et Telma (secondaire, ~40 %) en PBR ; Starlink en secours pur,
+  activé <strong>uniquement si Orange ET Telma sont indisponibles</strong>.
+  Source : <code>docs/00-architecture-reference.md</code> §2 et <code>docs/networking.md</code> §7.</p>
+
+  <div class="card">
+    <svg id="net" viewBox="0 0 1000 480" role="img" aria-label="Bascule WAN entre Orange, Telma et Starlink">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" fill="#94a3b8"/>
+        </marker>
+      </defs>
+
+      <!-- colonne LAN -->
+      <rect class="nbox" x="30" y="40" width="200" height="72" rx="10"/>
+      <text class="ttl" x="130" y="66" text-anchor="middle">Postes / VLAN 30</text>
+      <text class="mono" x="130" y="82" text-anchor="middle">10.10.30.0/24</text>
+      <text class="sttl" x="130" y="98" text-anchor="middle">USERS + WIFI + APPS…</text>
+
+      <rect class="nbox" x="30" y="210" width="200" height="72" rx="10" stroke="#2563eb" stroke-width="2"/>
+      <text class="ttl" x="130" y="236" text-anchor="middle">Core Aruba CX 6300 VSF</text>
+      <text class="mono" x="130" y="252" text-anchor="middle">core-sw-01 · 10.10.10.2</text>
+      <text class="sttl" x="130" y="268" text-anchor="middle">route 0.0.0.0/0 → 10.10.10.254</text>
+
+      <line x1="130" y1="112" x2="130" y2="206" class="link" stroke="#94a3b8" marker-end="url(#arr)"/>
+
+      <rect class="nbox" x="300" y="200" width="230" height="92" rx="10" stroke="#7c3aed" stroke-width="2"/>
+      <text class="ttl" x="415" y="228" text-anchor="middle">WatchGuard Firebox M270</text>
+      <text class="mono" x="415" y="245" text-anchor="middle">interco · 10.10.10.254</text>
+      <text class="sttl" x="415" y="262" text-anchor="middle">sondes Gateway Dependency 10 s</text>
+      <text class="sttl" x="415" y="278" text-anchor="middle">3 échecs → bascule · failback 120 s</text>
+
+      <line x1="230" y1="246" x2="296" y2="246" class="link" stroke="#94a3b8" marker-end="url(#arr)"/>
+
+      <!-- liens WAN depuis le FW -->
+      <path class="link link-orange" id="lkO" d="M 530 222 C 610 170, 640 120, 690 96" stroke="#2563eb" marker-end="url(#arr)"/>
+      <path class="link link-telma" d="M 530 246 L 690 246" stroke="#0d9488" marker-end="url(#arr)"/>
+      <path class="link link-star" d="M 530 270 C 610 322, 640 360, 690 384" stroke="#94a3b8" stroke-dasharray="5 7" marker-end="url(#arr)"/>
+
+      <!-- paquets WAN -->
+      <g class="flow flow-orange"><circle r="6" fill="#2563eb" style="offset-path:path('M 530 222 C 610 170, 640 120, 690 96')"/></g>
+      <g class="flow flow-telma"><circle r="5" fill="#0d9488" style="offset-path:path('M 530 246 L 690 246');animation-delay:.5s"/></g>
+      <g class="flow flow-star"><circle r="6" fill="#7c3aed" style="offset-path:path('M 530 270 C 610 322, 640 360, 690 384')"/></g>
+
+      <!-- opérateurs -->
+      <g>
+        <rect class="nbox" x="690" y="58" width="280" height="80" rx="10"/>
+        <text class="ttl" x="830" y="84" text-anchor="middle">Orange FH — Fibre</text>
+        <text class="mono" x="830" y="100" text-anchor="middle">PUBLIC_IP_REDACTED</text>
+        <text class="sttl" x="830" y="116" text-anchor="middle">PBR ~60 % · keepalive DNS FAI</text>
+        <text class="chip st-ok-orange" x="830" y="130" text-anchor="middle">● ACTIF — principal</text>
+        <text class="chip st-dn-orange" x="830" y="130" text-anchor="middle" fill="#dc2626">✕ HORS SERVICE</text>
+      </g>
+      <g>
+        <rect class="nbox" x="690" y="206" width="280" height="80" rx="10"/>
+        <text class="ttl" x="830" y="232" text-anchor="middle">Telma — Fibre + MikroTik hEX S</text>
+        <text class="mono" x="830" y="248" text-anchor="middle">PUBLIC_IP_REDACTED</text>
+        <text class="sttl" x="830" y="264" text-anchor="middle">PBR ~40 % · bascule immédiate</text>
+        <text class="chip st-ok-telma" x="830" y="278" text-anchor="middle">● ACTIF — secondaire</text>
+        <text class="chip st-dn-telma" x="830" y="278" text-anchor="middle" fill="#dc2626">✕ HORS SERVICE</text>
+      </g>
+      <g>
+        <rect class="nbox box-star" x="690" y="344" width="280" height="80" rx="10"/>
+        <circle class="star-glow" cx="830" cy="384" r="46" fill="#7c3aed" opacity="0.12"/>
+        <text class="ttl" x="830" y="370" text-anchor="middle">Starlink — Satellite (mode pont)</text>
+        <text class="mono" x="830" y="386" text-anchor="middle">PUBLIC_IP_REDACTED · CGNAT</text>
+        <text class="sttl" x="830" y="402" text-anchor="middle">latence ~40–120 ms · non publié</text>
+        <text class="chip st-ok-star" x="830" y="416" text-anchor="middle">◌ STANDBY pur</text>
+        <text class="chip st-act-star" x="830" y="416" text-anchor="middle" fill="#7c3aed">● SECOURS ACTIVÉ</text>
+      </g>
+    </svg>
+
+    <div id="banner">Situation nominale — Orange et Telma actifs (PBR 60/40), Starlink en standby pur.</div>
+
+    <div class="controls">
+      <button class="danger" id="btn-orange">Simuler une panne Orange</button>
+      <button class="danger" id="btn-telma">Simuler une panne Telma</button>
+      <button id="btn-reset">Rétablir tout</button>
+    </div>
+
+    <div class="legend">
+      <span><i class="k" style="background:var(--blue)"></i> Orange (actif)</span>
+      <span><i class="k" style="background:var(--teal)"></i> Telma (actif)</span>
+      <span><i class="k" style="background:var(--line);border-top:2px dashed var(--line);height:0"></i> Starlink (standby)</span>
+      <span><i class="k" style="background:var(--violet)"></i> Starlink (activé)</span>
+      <span><i class="k" style="background:var(--red)"></i> Lien défaillant</span>
+    </div>
+    <div id="rm-indicator" role="status">⚠ Mouvement réduit détecté — pas de paquets animés ; les changements d'état restent visibles (couleurs, statuts).</div>
+  </div>
+</div>
+<script>
+(function(){
+  var net = document.getElementById('net');
+  var banner = document.getElementById('banner');
+  var downO = false, downT = false;
+  function render(){
+    net.classList.toggle('ko-orange', downO && !downT);
+    net.classList.toggle('ko-both', downO && downT);
+    net.classList.toggle('ko-telma-only', downT && !downO);
+    var lk = document.getElementById('lkO');
+    if (downO) { lk.setAttribute('data-off','1'); } else { lk.removeAttribute('data-off'); }
+    if (downO && downT){
+      banner.className = 'crit';
+      banner.textContent = 'Orange ET Telma hors service — Starlink activé : secours satellite, CGNAT sortant, latence 40–120 ms. Services publiés non joignables.';
+    } else if (downO) {
+      banner.className = 'warn';
+      banner.textContent = 'Panne Orange détectée (3 échecs de sonde) — Telma reprend 100 % du trafic. Starlink reste standby (activation seulement si les deux liens fibre sont down).';
+    } else if (downT) {
+      banner.className = 'warn';
+      banner.textContent = 'Panne Telma détectée — Orange conserve le trafic. Starlink reste standby.';
+    } else {
+      banner.className = '';
+      banner.textContent = 'Situation nominale — Orange et Telma actifs (PBR 60/40), Starlink en standby pur.';
+    }
+  }
+  document.getElementById('btn-orange').addEventListener('click', function(){ downO = true; render(); });
+  document.getElementById('btn-telma').addEventListener('click', function(){ downT = true; render(); });
+  document.getElementById('btn-reset').addEventListener('click', function(){ downO = false; downT = false; render(); });
+
+  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){ document.body.classList.toggle('reduced', mq.matches); }
+  if (mq.addEventListener) { mq.addEventListener('change', apply); } else { mq.addListener(apply); }
+  apply();
+})();
+</script>
+</body>
+</html>

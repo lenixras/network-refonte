@@ -1,0 +1,21 @@
+# Configuration gitleaks — détection de secrets avant push (GitHub)
+# Usage local : gitleaks detect --config .gitleaks.toml
+title = "network-refonte secret scan"
+
+[allowlist]
+  description = "Placeholders anonymisés volontaires du dépôt de portfolio"
+  regexes = [
+    '''PUBLIC_IP_REDACTED''',
+    '''PUBLIC_GW_REDACTED''',
+    '''WEBHOOK_REDACTED''',
+    '''<REDACTED>''',
+    '''CHANGEME\*+''',
+    '''\$\{[A-Z0-9_]+\}''',      # variables d'env type ${PBS_TOKEN}
+    '''example\.local''',
+  ]
+  paths = [
+    '''\.gitleaks\.toml''',
+    '''README\.md''',
+    '''\.env\.example''',
+    '''docs/00-architecture-reference\.md''',
+  ]

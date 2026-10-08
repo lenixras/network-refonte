@@ -1,0 +1,23 @@
+%% Flux LAN → WAN — poste, accès, core, ressources, firewall, FAI
+%% Source de vérité : docs/00-architecture-reference.md
+flowchart LR
+    POSTE["Poste utilisateur — VLAN 30 USERS · DHCP 10.10.30.100–200"]
+    WIFI["Client WiFi — VLAN 40 WIFI · CORP-SSID 802.1X"]
+    ACC["Switch Access Aruba CX 6100 — acc-sw-a1/b1/c1 — access VLAN 30 · trunk 802.1Q"]
+    CORE["Core Aruba CX 6300 VSF — core-sw-01 — passerelle par défaut de tous les VLAN"]
+    SRV["Serveurs — VLAN 20 · 10.10.20.0/24 — DC01 · DC02 · FILE01 · WSUS01 · pve01/02"]
+    APP["Apps — VLAN 80 · 10.10.80.0/24 — APP01 10.10.80.101 · GLPI01 10.10.80.110"]
+    MON["Monitoring — VLAN 60 · 10.10.60.0/24 — Prometheus · Grafana · Zabbix"]
+    FW["WatchGuard Firebox M270 — SPI · NAT/PAT · PBR — interco 10.10.10.254"]
+    WAN["FAI — Orange principal · Telma secondaire · Starlink standby — PUBLIC_IP_REDACTED"]
+    INET["Internet"]
+
+    POSTE --> ACC
+    WIFI --> ACC
+    ACC -->|"trunk — routage SVI"| CORE
+    CORE -->|"10.10.20.0/24"| SRV
+    CORE -->|"10.10.80.0/24"| APP
+    CORE -->|"10.10.60.0/24"| MON
+    CORE -->|"route 0.0.0.0/0 via 10.10.10.254"| FW
+    FW -->|"PBR par application — sondes Gateway Dependency"| WAN
+    WAN --> INET

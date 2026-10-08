@@ -1,0 +1,32 @@
+# =============================================================================
+# datasource.yml — Provisioning "as code" des sources de donnees Grafana
+#                  (mon-graf-01, 10.10.60.11 — VLAN 60 MONITORING)
+# Deploie dans : /etc/grafana/provisioning/datasources/datasource.yml
+# Aucune secret ici : les mots de passe, si necessaires, viennent de
+# variables d'environnement Grafana (GF_SECURITY_* / .env), jamais en dur.
+# =============================================================================
+apiVersion: 1
+
+datasources:
+  # ---------------------------------------------------------------------------
+  - name: Prometheus
+    uid: prom-example
+    type: prometheus
+    access: proxy
+    url: http://10.10.60.10:9090        # mon-prom-01 (plan §4)
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"               # aligne sur scrape_interval global
+    editable: false                     # la verite vit dans ce depot (as-code)
+
+  # ---------------------------------------------------------------------------
+  - name: Alertmanager
+    uid: am-example
+    type: alertmanager
+    access: proxy
+    url: http://10.10.60.12:9093        # mon-alert-01 (plan §4)
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false # alerting centralise dans Prometheus
+    editable: false

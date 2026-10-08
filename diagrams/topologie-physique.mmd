@@ -1,0 +1,46 @@
+%% Topologie physique — source de vérité : docs/00-architecture-reference.md
+%% Toutes les adresses/hôtes sont anonymisés (PUBLIC_IP_REDACTED, example.local).
+flowchart TD
+    subgraph WAN["Opérateurs Internet (WAN)"]
+        ORANGE["Orange FH — Fibre — principal — PUBLIC_IP_REDACTED"]
+        TELMA["Telma — Fibre via MikroTik hEX S RB750Gr3 — secondaire — PUBLIC_IP_REDACTED"]
+        STAR["Starlink — Satellite, routeur en mode pont — secours — PUBLIC_IP_REDACTED"]
+    end
+
+    subgraph BAIE["Baie 1 — cœur d'infrastructure"]
+        FW["WatchGuard Firebox M270 (FWWG) — périmètre, NAT, failover WAN"]
+        CORE["Core Aruba CX 6300 24SFP+ — pile VSF 2 membres — core-sw-01 · 10.10.10.2"]
+        PP["Patch panels 24U — distribution LAN vers les 3 zones"]
+        NAS["NAS Synology RS1221+ — nas01 · 10.10.50.20 — DSM 7.2"]
+        PVE1["HPE ProLiant DL380 Gen10 Plus — pve01 · 10.10.20.10 — Proxmox VE 8.2"]
+        PVE2["HPE ProLiant DL380 Gen10 Plus — pve02 · 10.10.20.11 — Proxmox VE 8.2"]
+    end
+
+    subgraph ZA["Zone A"]
+        ACC1["Access Aruba CX 6100 24G PoU 370W #1 — acc-sw-a1 · 10.10.10.11"]
+    end
+    subgraph ZB["Zone B"]
+        ACC2["Access Aruba CX 6100 24G PoU 370W #2 — acc-sw-b1 · 10.10.10.12"]
+    end
+    subgraph ZC["Zone C"]
+        ACC3["Access Aruba CX 6100 24G PoU 370W #3 — acc-sw-c1 · 10.10.10.13"]
+    end
+
+    POSTES["Postes filaires — VLAN 30 USERS"]
+    AP["Point d'accès WiFi — ap-corpo-01 · réservé 10.10.10.31 — CORP-SSID / GUEST-SSID"]
+
+    ORANGE -->|"Fibre — lien principal"| FW
+    TELMA -->|"Fibre — lien secondaire"| FW
+    STAR -->|"Satellite — standby pur"| FW
+    FW ---|"Liaison L3 · 10.10.10.254"| CORE
+    CORE ---|"Patch — trunk 802.1Q"| PP
+    PP --- ACC1
+    PP --- ACC2
+    PP --- ACC3
+    CORE ---|"SFP+ 10G"| NAS
+    CORE ---|"SFP+ 10G"| PVE1
+    CORE ---|"SFP+ 10G"| PVE2
+    ACC1 --- POSTES
+    ACC2 --- POSTES
+    ACC3 --- POSTES
+    ACC1 -.->|"PoE 802.3af/at"| AP

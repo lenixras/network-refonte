@@ -1,0 +1,30 @@
+%% Pile de supervision — Prometheus / Grafana / Alertmanager / Zabbix — source : docs/monitoring.md
+flowchart LR
+    subgraph SRC["Sources de métriques"]
+        NET["Réseau — Aruba CX · WatchGuard · MikroTik · AP — SNMP v3 authPriv"]
+        LNX["Linux — node_exporter — APP01 · GLPI01 · DMZ-RP · MON"]
+        WIN["Windows — windows_exporter — DC01 · DC02 · FILE01 · WSUS01"]
+        PVE["Hyperviseur — pve-exporter — pve01 · pve02 via API Proxmox"]
+        SVC["Services — blackbox_exporter — HTTP · TCP · DNS · ICMP"]
+    end
+
+    SNMPE["snmp_exporter"]
+    PROM["Prometheus — mon-prom-01 · 10.10.60.10 — VLAN 60"]
+    GRAF["Grafana — mon-graf-01 · 10.10.60.11 — dashboards périmètre · réseau · Proxmox · services · backup"]
+    ALERT["Alertmanager — mon-alert-01 · 10.10.60.12 — group_by · inhibition · silences"]
+    ZBX["Zabbix 6.0 LTS — mon-zbx-01 · 10.10.60.20 — triggers · maps"]
+    NOTIF["Notifications — e-mail IT · webhook WEBHOOK_REDACTED"]
+    GLPI["GLPI01 · 10.10.80.110 — incident → ticket ITIL"]
+
+    NET -->|"SNMP v3"| SNMPE
+    SNMPE --> PROM
+    LNX --> PROM
+    WIN --> PROM
+    PVE --> PROM
+    SVC --> PROM
+    PROM -->|"requêtes"| GRAF
+    PROM -->|"règles info / warning / critical"| ALERT
+    ALERT --> NOTIF
+    ALERT -->|"ticket auto sur incident"| GLPI
+    NET -->|"SNMP v3"| ZBX
+    ZBX -.->|"escalade ITIL"| GLPI

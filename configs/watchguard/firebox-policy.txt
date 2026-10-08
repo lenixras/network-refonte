@@ -1,0 +1,92 @@
+================================================================================
+FICHIER : firebox-policy.txt  (EXTRAIT ILLUSTRATIF — politique pare-feu)
+PERIPHERIQUE : WatchGuard Firebox M270  (hostname FWWG / fw.example.local)
+ROLE : perimetre — 3 WAN, NAT/publish, routage, filtres par VLAN (matrice)
+SOURCE DE VERITE : docs/00-architecture-reference.md (sections 2, 3, 4)
+--------------------------------------------------------------------------------
+VALEURS ANONYMISEES :
+  - IP publiques WAN  -> PUBLIC_IP_REDACTED   passerelle -> PUBLIC_GW_REDACTED
+  - domaine interne   -> example.local
+  - mots de passe / certificat / cle cluster -> <REDACTED> / CHANGEME_****
+Presentation en pseudo-CLI/Policy-Manager ; pas un export complet reel.
+================================================================================
+
+--- INTERFACES -----------------------------------------------------------------
+interface  external   = WAN ORANGE   (principal)  PUBLIC_IP_REDACTED / PUBLIC_GW_REDACTED
+interface  optional1  = WAN TELMA    (secondaire) PUBLIC_IP_REDACTED / PUBLIC_GW_REDACTED
+                        -> recoit le handoff du MikroTik hEX S (voir mikrotik/)
+interface  optional2  = WAN STARLINK (secours)    PUBLIC_IP_REDACTED (CGNAT, DHCP)
+interface  trusted    = 10.10.10.254/24  VLAN 10 MGMT  (interco L3 vers core-sw-01)
+interface  dmz        = 10.10.90.2/28     VLAN 90 DMZ  (reverse proxy dmz-rp-01 10.10.90.10)
+
+--- GATEWAY / SELECTION WAN ----------------------------------------------------
+gateway  Orange    external   metric 10   (principal, PBR par application)
+gateway  Telma      optional1  metric 20   (secondaire actif, PBR)
+gateway  Starlink   optional2  metric 200  (standby pur — CGNAT/latence variable)
+aggregate  = active/active/standby ; voir wan-failover.txt
+
+--- NAT / SERVER PUBLISH (seuls services DMZ exposes) --------------------------
+# Publie UNIQUEMENT le reverse proxy DMZ. Aucune VM interne (APP/GLPI/DC) exposee.
+pub  HTTPS-GLPI   ext=PUBLIC_IP_REDACTED:443 -> dmz-rp-01(10.10.90.10):443
+     -> dmz-rp-01 relaie vers GLPI01 10.10.80.110:443 (VLAN 80) [back-to-back]
+pub  HTTPS-APP    ext=PUBLIC_IP_REDACTED:443 -> dmz-rp-01:443 (hote -> APP01 10.10.80.101)
+# DNS/SMTP publish : non. Tout le reste = deny.
+nat  outbound     trusted->external (PAT/SNAT) default
+nat  outbound     dmz->external (PAT) restreint aux ports publish sortants
+
+--- PACKET-FILTER : MATRICE PAR VLAN (logique traffic-matrix) ------------------
+# Convention : src -> dst : service : action. Les VLANs internes sont atteints
+# via 'trusted' (routage inter-VLAN assure par le core ; le FW voit 10.10.10.0/24
+# comme next-hop, les filtres ci-dessous sont logiques par prefixe de destination).
+
+# --- USERS (VLAN 30, 10.10.30.0/24) -> SERVERS (VLAN 20) ----------------------
+allow  10.10.30.0/24 -> 10.10.20.101,10.10.20.102 : AD/LDAP(389,636),DNS(53),Kerberos(88),NTP(123)
+allow  10.10.30.0/24 -> 10.10.20.110             : SMB/File(445,139) [FILE01]
+allow  10.10.30.0/24 -> 10.10.20.111             : HTTP(8530/8531) [WSUS01]
+# --- USERS -> APPS (VLAN 80) ---------------------------------------------------
+allow  10.10.30.0/24 -> 10.10.80.101             : APP-metier(tcp/<APP_PORT>) [APP01]
+allow  10.10.30.0/24 -> 10.10.80.110             : HTTPS(443) [GLPI01]
+# --- WIFI corporate (VLAN 40) : memes regles que USERS -------------------------
+allow  10.10.40.0/22 -> 10.10.20.0/24            : AD/DNS/File (idem USERS)
+allow  10.10.40.0/22 -> 10.10.80.0/24            : APP + GLPI (idem USERS)
+# --- MGMT (VLAN 10) : ADMIN RESTREINT ------------------------------------------
+allow  10.10.10.0/24 -> any:internal             : SSH(22),SNMPv3(161),HTTPS-mgmt(8043/8044)
+                                                  # (equips reseau + station admin identifiee)
+deny   any -> 10.10.10.0/24 : inbound non-solicite
+# --- MONITORING (VLAN 60) : READ-ONLY VERS TOUT --------------------------------
+allow  10.10.60.0/24 -> any:internal             : SNMPv3(161),ICMP,exporter-ports,winrm-read
+                                                  # mon-prom/zbx/graf/alert en lecture seule
+deny   10.10.60.0/24 -> any : actions d'ecriture/config (postes/servers ne parlent PAS au 60)
+# --- BACKUP (VLAN 50) : PBS/NAS uniquement -------------------------------------
+allow  10.10.50.10 (PBS01) <-> 10.10.50.20 (NAS) : NFS(2049),PBS(8007)
+allow  10.10.20.0/24 -> 10.10.50.10              : PBS ingest(8007)
+# --- GUEST (VLAN 70) : INTERNET + DNS SEULEMENT ---------------------------------
+allow  10.10.70.0/22 -> external                 : HTTP(80),HTTPS(443) [Internet seul]
+allow  10.10.70.0/22 -> <FW-resolver>             : DNS(53) [resolution limitee]
+deny   10.10.70.0/22 -> 10.10.0.0/16             : any  [aucun acces aux ressources internes]
+deny   10.10.70.0/22 -> 10.10.70.0/22            : inter-client (isolement, anti-rebond)
+# --- DMZ (VLAN 90) : n'initie que vers Internet ; recoit depuis FW/publish ------
+deny   10.10.90.0/28 -> any:internal             : initialisation (le DMZ ne JOINT pas l'interne)
+allow  10.10.90.10 -> 10.10.80.110,10.10.80.101  : 443 (reverse proxy -> backends, acheminement)
+# --- DENY BY DEFAULT ------------------------------------------------------------
+deny   any -> any : (default) ; logging on
+
+--- QOS / TRAFFIC SHAPING (note) -----------------------------------------------
+bandwidth  in=Orange_public  out=Orange_public (adapter au contrat FAI)
+shaping    priorite : Voix > Applications metier (GLPI/APP) > Browsing ; guest limite.
+per-user   bande passante GUEST plafonnee ; classes by service.
+
+--- DEFENSE EN PROFONDEUR ------------------------------------------------------
+SPI                        = ON (stateful, drop out-of-state)
+gateway anti-virus / IPS   = signatures a jour (WatchGuard Blocklist + geo si besoin)
+blocklist                  = IP reputees, pays a risque (anonymise)
+DoS protection             = ON sur external (SYN flood, ICMP flood)
+inline HTTPS inspection    = POST/GET sur ports publish (443) [cert -> <REDACTED>]
+log                        = deny + publish vers mon-zbx-01/syslog (VLAN 60)
+
+--- ADMINITE -------------------------------------------------------------------
+management https 8043/8044 = RESTREINT a subnet MGMT 10.10.10.0/24 (station admin)
+cluster/dyndns secrets     = <REDACTED>
+================================================================================
+FIN — firebox-policy.txt (extrait). Failover detaille : wan-failover.txt
+================================================================================

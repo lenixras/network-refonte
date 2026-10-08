@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cluster Proxmox — migration live de la VMID 201 — diagramme animé</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#dce4f0;
+    --line:#94a3b8; --blue:#2563eb; --violet:#7c3aed; --green:#059669; --amber:#d97706; --red:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .host{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .httl{font-size:14px;font-weight:700;fill:var(--ink)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;fill:var(--ink)}
+  .chip{fill:#f1f5f9;stroke:var(--line);stroke-width:1}
+  .chip201{fill:#ede9fe;stroke:var(--violet);stroke-width:1.6}
+  .slot{fill:none;stroke:var(--violet);stroke-width:1.4;stroke-dasharray:5 4}
+  .clink{stroke:var(--violet);stroke-width:2;stroke-dasharray:6 6;fill:none}
+  .chip-lbl{font-size:11px;font-weight:600;fill:var(--ink)}
+  .chip-ip{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;fill:var(--muted)}
+  .bridge{font-size:10px;fill:var(--muted)}
+  .status{font-size:12.5px;font-weight:600}
+  .controls{display:flex;gap:10px;margin-top:12px}
+  button{font:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .kb{display:inline-block;width:12px;height:10px;border-radius:3px}
+  #rm-indicator{display:none;margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px}
+  body.reduced #rm-indicator{display:block}
+  #board.reset *{animation:none !important}
+
+  /* Base (statique, fidèle à la doc) : VMID 201 sur pve02 ; jeton caché */
+  .jeton{display:none}
+  .st1{opacity:1}.st2,.st3{display:none}
+
+  @media (prefers-reduced-motion: no-preference){
+    .chipbase201{animation:baseHide 13s linear infinite}
+    .jeton{display:block;animation:jeton 13s linear infinite}
+    .st1{animation:s1 13s linear infinite}
+    .st2{display:block;animation:s2 13s linear infinite}
+    .st3{display:block;animation:s3 13s linear infinite}
+    .clink{animation:dash 1s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    /* fenêtre : 0-8 % figé pve02 · 10-33 % migration · 35-63 % sur pve01 · 65-88 % retour · 90-100 % pve02 */
+    @keyframes baseHide{0%,9%{opacity:1}11%,87%{opacity:0}89%,100%{opacity:1}}
+    @keyframes jeton{
+      0%,9%{transform:translate(0,0);opacity:1}
+      33%,63%{transform:translate(-520px,0);opacity:1}
+      87%{transform:translate(0,0);opacity:1}
+      89%,100%{opacity:1;transform:translate(0,0)}
+    }
+    @keyframes s1{0%,9%{opacity:1}11%,100%{opacity:0}}
+    @keyframes s2{0%,9%{opacity:0}11%,31%{opacity:1}35%,61%{opacity:0}65%,85%{opacity:1}87%,100%{opacity:0}}
+    @keyframes s3{0%,33%{opacity:0}35%,63%{opacity:1}65%,100%{opacity:0}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Proxmox VE 8.2 — répartition des VMs et migration live (VMID 201 · APP01)</h1>
+  <p class="sub">La VMID 201 (APP01) vit normalement sur <strong>pve02</strong> (cf. docs/00-architecture-reference.md §5) ;
+  l'animation illustre une <em>live migration</em> pve02 → pve01 via <code>vmbr1</code> — VLAN 15 CLUSTER, MTU 9000 —
+  puis son retour.</p>
+
+  <div class="card">
+    <svg id="board" viewBox="0 0 1000 520" role="img" aria-label="Deux hôtes Proxmox et migration de la VMID 201">
+      <!-- hôte pve01 -->
+      <rect class="host" x="20" y="30" width="440" height="400" rx="14"/>
+      <text class="httl" x="40" y="58">pve01.example.local</text>
+      <text class="mono" x="40" y="76">10.10.20.10 · corosync 10.10.15.10 · HPE DL380 Gen10 Plus</text>
+      <text class="bridge" x="40" y="94">vmbr0 : LAN étiqueté · vmbr1 : cluster + stockage VLAN 15</text>
+
+      <g><rect class="chip" x="40" y="110" width="180" height="48" rx="8"/><text class="chip-lbl" x="50" y="130">101 · DC01</text><text class="chip-ip" x="50" y="146">10.10.20.101 · VLAN 20</text></g>
+      <g><rect class="chip" x="240" y="110" width="180" height="48" rx="8"/><text class="chip-lbl" x="250" y="130">110 · FILE01</text><text class="chip-ip" x="250" y="146">10.10.20.110 · VLAN 20</text></g>
+      <g><rect class="chip" x="40" y="175" width="180" height="48" rx="8"/><text class="chip-lbl" x="50" y="195">111 · WSUS01</text><text class="chip-ip" x="50" y="211">10.10.20.111 · VLAN 20</text></g>
+      <g><rect class="chip" x="240" y="175" width="180" height="48" rx="8"/><text class="chip-lbl" x="250" y="195">301 · PBS01</text><text class="chip-ip" x="250" y="211">10.10.50.10 · VLAN 50</text></g>
+      <g><rect class="chip" x="40" y="240" width="180" height="48" rx="8"/><text class="chip-lbl" x="50" y="260">410 · MON-ZBX</text><text class="chip-ip" x="50" y="276">10.10.60.20 · VLAN 60</text></g>
+      <!-- slot d'accueil de la migration -->
+      <rect class="slot" x="240" y="240" width="180" height="48" rx="8"/>
+      <text class="chip-ip" x="250" y="268">arrivée VMID 201</text>
+
+      <text class="chip-ip" x="40" y="410" fill="#64748b">Stockage : local-zfs (RAID1 HPE) + nas-nfs (VLAN 15)</text>
+
+      <!-- hôte pve02 -->
+      <rect class="host" x="540" y="30" width="440" height="400" rx="14"/>
+      <text class="httl" x="560" y="58">pve02.example.local</text>
+      <text class="mono" x="560" y="76">10.10.20.11 · corosync 10.10.15.11 · HPE DL380 Gen10 Plus</text>
+      <text class="bridge" x="560" y="94">vmbr0 : LAN étiqueté · vmbr1 : cluster + stockage VLAN 15</text>
+
+      <g><rect class="chip" x="560" y="110" width="180" height="48" rx="8"/><text class="chip-lbl" x="570" y="130">102 · DC02</text><text class="chip-ip" x="570" y="146">10.10.20.102 · VLAN 20</text></g>
+      <g class="chipbase201"><rect class="chip chip201" x="760" y="110" width="180" height="48" rx="8"/><text class="chip-lbl" x="770" y="130">201 · APP01 ★</text><text class="chip-ip" x="770" y="146">10.10.80.101 · VLAN 80</text></g>
+      <g><rect class="chip" x="560" y="175" width="180" height="48" rx="8"/><text class="chip-lbl" x="570" y="195">210 · GLPI01</text><text class="chip-ip" x="570" y="211">10.10.80.110 · VLAN 80</text></g>
+      <g><rect class="chip" x="760" y="175" width="180" height="48" rx="8"/><text class="chip-lbl" x="770" y="195">401 · MON-PROM</text><text class="chip-ip" x="770" y="211">10.10.60.10 · VLAN 60</text></g>
+      <g><rect class="chip" x="560" y="240" width="180" height="48" rx="8"/><text class="chip-lbl" x="570" y="260">402 · MON-GRAF</text><text class="chip-ip" x="570" y="276">10.10.60.11 · VLAN 60</text></g>
+      <g><rect class="chip" x="760" y="240" width="180" height="48" rx="8"/><text class="chip-lbl" x="770" y="260">403 · MON-ALERT</text><text class="chip-ip" x="770" y="276">10.10.60.12 · VLAN 60</text></g>
+      <g><rect class="chip" x="560" y="305" width="180" height="48" rx="8"/><text class="chip-lbl" x="570" y="325">501 · DMZ-RP</text><text class="chip-ip" x="570" y="341">10.10.90.10 · VLAN 90</text></g>
+
+      <!-- jeton de migration (au-dessus des hôtes) -->
+      <g class="jeton"><rect class="chip chip201" x="760" y="110" width="180" height="48" rx="8"/>
+        <text class="chip-lbl" x="770" y="130">201 · APP01</text><text class="chip-ip" x="770" y="146">migration live…</text></g>
+
+      <!-- lien corosync -->
+      <path class="clink" d="M 460 452 L 540 452"/>
+      <text class="mono" x="500" y="444" text-anchor="middle">vmbr1</text>
+      <text class="chip-ip" x="500" y="470" text-anchor="middle" fill="#7c3aed">VLAN 15 · MTU 9000</text>
+
+      <!-- statut -->
+      <text class="status st1" x="500" y="505" text-anchor="middle" fill="#334155">État : VMID 201 APP01 sur pve02 (placement de référence)</text>
+      <text class="status st2" x="500" y="505" text-anchor="middle" fill="#7c3aed">Live migration pve02 → pve01 en cours — service continu, pré-copy mémoire</text>
+      <text class="status st3" x="500" y="505" text-anchor="middle" fill="#059669">État : VMID 201 APP01 sur pve01 — migration terminée (illustration)</text>
+    </svg>
+
+    <div class="controls"><button id="replay">Rejouer la migration</button></div>
+    <div class="legend">
+      <span><i class="kb" style="background:#f1f5f9;border:1px solid var(--line)"></i> VM</span>
+      <span><i class="kb" style="background:#ede9fe;border:1.5px solid var(--violet)"></i> VMID 201 — sujet de la migration</span>
+      <span><i class="kb" style="border:1.5px dashed var(--violet)"></i> Slot d'accueil sur pve01</span>
+    </div>
+    <div id="rm-indicator" role="status">⚠ Mouvement réduit détecté — migration figée : état statique conforme à la documentation (VMID 201 sur pve02).</div>
+  </div>
+</div>
+<script>
+(function(){
+  var board = document.getElementById('board');
+  document.getElementById('replay').addEventListener('click', function(){
+    board.classList.add('reset'); void board.offsetWidth; board.classList.remove('reset');
+  });
+  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){ document.body.classList.toggle('reduced', mq.matches); }
+  if (mq.addEventListener) { mq.addEventListener('change', apply); } else { mq.addListener(apply); }
+  apply();
+})();
+</script>
+</body>
+</html>

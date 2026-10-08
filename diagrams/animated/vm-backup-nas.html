@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sauvegarde 3-2-1 — VM → PBS → NAS → hors-site — diagramme animé</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#dce4f0;
+    --line:#94a3b8; --blue:#2563eb; --violet:#7c3aed; --green:#059669; --amber:#d97706; --red:#dc2626; --teal:#0d9488;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  svg{display:block;width:100%;height:auto}
+  text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .nbox{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .key{stroke:var(--violet);stroke-width:2}
+  .ttl{font-size:13px;font-weight:600;fill:var(--ink)}
+  .sttl{font-size:10.5px;fill:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;fill:var(--ink)}
+  .cap{font-size:9.5px;fill:var(--muted)}
+  .link{stroke:var(--violet);stroke-width:2;fill:none;opacity:.75}
+  .band{opacity:.85}
+  .blbl{font-size:10px;fill:#fff;font-weight:600}
+  .axis{font-size:9.5px;fill:var(--muted)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .kb{display:inline-block;width:10px;height:10px;border-radius:3px}
+  .kl{display:inline-block;width:18px;height:3px;border-radius:2px}
+  #rm-indicator{display:none;margin-top:12px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px}
+  body.reduced #rm-indicator{display:block}
+
+  .block{display:none}
+  .probe{display:none}
+
+  @media (prefers-reduced-motion: no-preference){
+    @supports (offset-path: path('M0 0 L10 0')){
+      .block{display:block;offset-rotate:0deg;animation:travel 7.5s linear infinite}
+      .b2{animation-delay:2.5s}.b3{animation-delay:5s}
+      @keyframes travel{0%{offset-distance:0%;opacity:0}4%{opacity:1}96%{opacity:1}100%{offset-distance:100%;opacity:0}}
+      .probe{display:block;offset-rotate:0deg;animation:sweep 15s linear infinite}
+      @keyframes sweep{0%{offset-distance:0%}100%{offset-distance:100%}}
+    }
+    .link{stroke-dasharray:7 7;animation:flow 1.2s linear infinite}
+    @keyframes flow{to{stroke-dashoffset:-14}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sauvegarde 3-2-1 — VM de production → PBS → NAS → hors-site</h1>
+  <p class="sub">Chaîne complète et rétention GFS. Source : <code>docs/00-architecture-reference.md</code> §7 et
+  <code>docs/backup.md</code> (RPO/RTO, rétention, chiffrement).</p>
+
+  <div class="card">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="Pipeline de sauvegarde vers le hors-site et frise de rétention">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7c3aed"/></marker>
+      </defs>
+
+      <!-- liens (sous les boîtes : les blocs « sautent » d'un nœud à l'autre) -->
+      <line class="link" x1="220" y1="112" x2="266" y2="112" marker-end="url(#arr)"/>
+      <line class="link" x1="470" y1="112" x2="516" y2="112" marker-end="url(#arr)"/>
+      <line class="link" x1="720" y1="112" x2="766" y2="112" marker-end="url(#arr)"/>
+
+      <!-- blocs de sauvegarde en transit -->
+      <rect class="block b1" x="-7" y="-7" width="14" height="14" rx="3" fill="#7c3aed" style="offset-path:path('M 120 112 L 870 112')"/>
+      <rect class="block b2" x="-7" y="-7" width="14" height="14" rx="3" fill="#2563eb" style="offset-path:path('M 120 112 L 870 112')"/>
+      <rect class="block b3" x="-7" y="-7" width="14" height="14" rx="3" fill="#059669" style="offset-path:path('M 120 112 L 870 112')"/>
+
+      <!-- nœuds -->
+      <g><rect class="nbox" x="20" y="62" width="200" height="100" rx="12"/>
+        <text class="ttl" x="120" y="88" text-anchor="middle">Copie 1 — Production</text>
+        <text class="sttl" x="120" y="104" text-anchor="middle">VMs pve01 / pve02</text>
+        <text class="mono" x="120" y="120" text-anchor="middle">local-zfs RAID1</text>
+        <text class="sttl" x="120" y="138" text-anchor="middle">DC · FILE · APP · GLPI…</text></g>
+      <g><rect class="nbox key" x="270" y="62" width="200" height="100" rx="12"/>
+        <text class="ttl" x="370" y="88" text-anchor="middle">Copie 2 — PBS01</text>
+        <text class="mono" x="370" y="104" text-anchor="middle">10.10.50.10 · VLAN 50</text>
+        <text class="sttl" x="370" y="120" text-anchor="middle">PBS 3.1 · incrémental</text>
+        <text class="sttl" x="370" y="136" text-anchor="middle">chiffré + dédup</text></g>
+      <g><rect class="nbox key" x="520" y="62" width="200" height="100" rx="12"/>
+        <text class="ttl" x="620" y="88" text-anchor="middle">nas01 — Synology</text>
+        <text class="mono" x="620" y="104" text-anchor="middle">10.10.50.20 · DSM 7.2</text>
+        <text class="sttl" x="620" y="120" text-anchor="middle">datastore PBS (NFS)</text>
+        <text class="sttl" x="620" y="136" text-anchor="middle">Btrfs · retention lock</text></g>
+      <g><rect class="nbox" x="770" y="62" width="200" height="100" rx="12"/>
+        <text class="ttl" x="870" y="88" text-anchor="middle">Copie 3 — Hors-site</text>
+        <text class="sttl" x="870" y="104" text-anchor="middle">stockage objet distant</text>
+        <text class="mono" x="870" y="120" text-anchor="middle">TLS · air-gap logique</text>
+        <text class="sttl" x="870" y="138" text-anchor="middle">compte de réplication séparé</text></g>
+
+      <!-- légendes des tronçons -->
+      <text class="cap" x="140" y="42">Sauvegarde PBS — RPO Tier 0 : 1 h</text>
+      <text class="cap" x="410" y="42">NFS · MTU 9000 · prune-after 30 j</text>
+      <text class="cap" x="640" y="42">Snapshot Replication chiffrée</text>
+
+      <!-- frise de rétention -->
+      <text class="ttl" x="20" y="228" font-size="12">Frise de rétention (GFS)</text>
+      <line x1="60" y1="262" x2="940" y2="262" stroke="#cbd5e1" stroke-width="1.5"/>
+      <rect class="band" x="60"  y="250" width="220" height="24" rx="5" fill="#2563eb"/><text class="blbl" x="170" y="266" text-anchor="middle">Incrémental · 7 j glissants</text>
+      <rect class="band" x="280" y="250" width="180" height="24" rx="5" fill="#0d9488"/><text class="blbl" x="370" y="266" text-anchor="middle">Full hebdo · 4 sem.</text>
+      <rect class="band" x="460" y="250" width="180" height="24" rx="5" fill="#7c3aed"/><text class="blbl" x="550" y="266" text-anchor="middle">Mensuel · 12 mois</text>
+      <rect class="band" x="640" y="250" width="150" height="24" rx="5" fill="#d97706"/><text class="blbl" x="715" y="266" text-anchor="middle">Annuel · 5 ans</text>
+      <rect class="band" x="790" y="250" width="150" height="24" rx="5" fill="#64748b"/><text class="blbl" x="865" y="266" text-anchor="middle">Config · 90 versions</text>
+
+      <!-- sonde qui parcourt la frise -->
+      <circle class="probe" r="6" fill="#dc2626" style="offset-path:path('M 60 262 L 940 262')"/>
+
+      <text class="axis" x="60" y="300">J1</text>
+      <text class="axis" x="940" y="300" text-anchor="end">+5 ans</text>
+      <text class="cap" x="20" y="330">Tests de restauration : mensuel (échantillon) + trimestriel (complet) — chaque test consigné dans un ticket GLPI.</text>
+      <text class="cap" x="20" y="348">Anti-rançongadie : copie immutable (WORM / retention lock + PBS prune-after) et air-gap logique.</text>
+    </svg>
+
+    <div class="legend">
+      <span><i class="kb" style="background:var(--violet)"></i> Bloc de sauvegarde en transit</span>
+      <span><i class="kl" style="background:var(--violet)"></i> Flux de réplication</span>
+      <span><i class="kb" style="background:var(--red)"></i> Sonde de rétention</span>
+      <span>Boîte à trait violet : maillon 3-2-1</span>
+    </div>
+    <div id="rm-indicator" role="status">⚠ Mouvement réduit détecté — pipeline affiché en état statique (aucun bloc animé).</div>
+  </div>
+</div>
+<script>
+(function(){
+  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){ document.body.classList.toggle('reduced', mq.matches); }
+  if (mq.addEventListener) { mq.addEventListener('change', apply); } else { mq.addListener(apply); }
+  apply();
+})();
+</script>
+</body>
+</html>

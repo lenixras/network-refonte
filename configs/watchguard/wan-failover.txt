@@ -1,0 +1,55 @@
+================================================================================
+FICHIER : wan-failover.txt  (EXTRAIT ILLUSTRATIF — gateway/failover 3 FAI)
+PERIPHERIQUE : WatchGuard Firebox M270 (FWWG)
+ROLE : politique active/active/standby — Orange + Telma (PBR), Starlink standby
+SOURCE DE VERITE : docs/00-architecture-reference.md (section 2 "Opérateurs")
+--------------------------------------------------------------------------------
+VALEURS ANONYMISEES : PUBLIC_IP_REDACTED / PUBLIC_GW_REDACTED ; cles -> <REDACTED>.
+Pseudo-CLI/Policy-Manager ; les seuils sont des valeurs type a ajuster en prod.
+================================================================================
+
+--- PRIORITY / ROLES -----------------------------------------------------------
+priority 1  Orange    ext(external)   = ACTIF (principal)
+priority 2  Telma      optional1       = ACTIF (secondaire) -> partage via PBR
+priority 3  Starlink   optional2       = STANDBY PUR (jamais actif tant que 1|2 OK)
+mode        = active/active/standby (Orange+Telma portent la charge, Starlink en reserve)
+
+--- PBR (Policy-Based Routing) : fixer certaines apps sur un WAN ---------------
+# Le choix de sortie n'est pas seulement metric : certaines flux sont epingles.
+route  app  Voix / visio            ->  gateway Orange   (latence minimale)
+route  app  Metier (APP01/GLPI01)   ->  gateway Orange   (session sticky, eviter bascule)
+route  app  Backup / PBS upload hors-site -> gateway Telma (decharge Orange)
+route  app  Browse general          ->  load-share Orange|Telma (round-robin ponderes)
+# Starlink : uniquement si Orange ET Telma HAUSSES -> secours (CGNAT : pas d'inbound).
+
+--- PROBE / KEEPALIVE (detection de panne) -------------------------------------
+detection-method  = ping gateway + ping servers secondaires (evite faux-positifs)
+ping-gateway      = OUI (PUBLIC_GW_REDACTED par WAN)
+ping-servers      = 223.5.5.5 (AliDNS/anon), 1.1.1.1, resolveur FAI  [placeholders]
+keepalive-interval= 10 s
+downtime-before-failover = 3 tentatives / ~12 s  (eviter flapping)
+restore-before-failback  = 300 s (5 min) stable  -> puis failback automatique
+failback-mode    = automatic (revenir a Orange quand OK)
+
+--- SEUILS & COMPORTEMENT ------------------------------------------------------
+Orange down   -> bascule des flux "actif" sur Telma (priorite 2) quasi-instantanee
+Telma down    -> la charge PBR revient sur Orange
+Orange+Telma down -> Starlink active (route priorite 3) ; NAT sortant CGNAT seulement,
+                     les SERVER PUBLISH (HTTPS-GLPI/APP) ne sont PAS joignables (CGNAT),
+                     alerte mon-alert-01 + trap SNMP vers supervision (VLAN 60).
+split-brain WAN -> interdit : un seul gateway par flux (sticky par session).
+
+--- ETAT ATTENDU (illustration) -----------------------------------------------
+[external   Orange]   state=UP    last-probe=OK   metric=10   role=active
+[optional1  Telma ]   state=UP    last-probe=OK   metric=20   role=active-pbr
+[optional2  Starln]   state=IDLE  last-probe=OK   metric=200  role=standby
+failover-events-24h = 0   (sinon ouvrir ticket GLPI + log -> mon-zbx-01)
+
+--- NOTES D'EXPLOITATION -------------------------------------------------------
+- Ne JAMAIS mettre Starlink en actif : debit/latence variables + CGNAT sortant.
+- Tester la bascule en maintenance : desactiver external, verifier ping-servers et
+  la re-ecosserie PBR, puis reintegrer (manuel pendant la fenetre).
+- Les IP/secret de test sont PUBLIC_IP_REDACTED/<REDACTED> (anonymises).
+================================================================================
+FIN — wan-failover.txt (extrait). Politique de filtres : firebox-policy.txt
+================================================================================

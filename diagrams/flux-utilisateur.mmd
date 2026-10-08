@@ -1,0 +1,22 @@
+%% Flux utilisateur — ouverture de session, AD, DNS, SMB, application
+%% Source de vérité : docs/00-architecture-reference.md ( DHCP/DNS : DC01/DC02 )
+sequenceDiagram
+    participant P as Poste — VLAN 30 (10.10.30.100–200)
+    participant A as Switch Access CX 6100
+    participant C as Core CX 6300 VSF (10.10.30.1)
+    participant D as DC01 — AD/DNS/DHCP (10.10.20.101)
+    participant F as FILE01 (10.10.20.110)
+    participant G as APP01 (10.10.80.101)
+
+    P->>A: DHCP DISCOVER — access VLAN 30
+    A->>C: Trunk 802.1Q vers le Core
+    C->>D: Relai ip helper-address (10.10.20.101, 10.10.20.102)
+    D-->>P: Bail 8h — IP pool, passerelle 10.10.30.1, DNS 10.10.20.101/102
+    P->>D: Ouverture de session — Kerberos / LDAP via routage VLAN 30 → 20
+    D-->>P: Authentification AD validée + GPO appliquées
+    P->>D: Requête DNS — file01.example.local · app01.example.local
+    D-->>P: Réponse DNS (zone AD-integrated example.local)
+    P->>F: SMB — montage des partages (RBAC groups-based access)
+    F-->>P: Lecture / écriture fichiers autorisées
+    P->>G: HTTP — accès application métier (VLAN 30 → 80)
+    G-->>P: Réponse applicative
