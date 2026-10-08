@@ -3,7 +3,7 @@
 # restore-drill.sh — Test de restauration periodique (le « test de
 #                    restauration » obligatoire du plan de reprise).
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Prouver que les backups PBS sont RESTAURABLES, pas seulement stockes :
 #     1. choisir la derniere snapshot PBS d'une VM du plan,
 #     2. la restaurer dans une VM de scratch (VMID = 9000+VMID) sur un nœud,

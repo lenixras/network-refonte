@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">Refonte Infrastructure Réseau & Système</h1>
   <p align="center">
-    <em>Projet d'architecture réseau/système d'entreprise — Portfolio Network / System Engineer</em>
+    <em>Réalisation d'architecture réseau &amp; système d'entreprise — Network / System Engineer</em>
   </p>
   <p align="center">
     Aruba · WatchGuard · MikroTik · HPE · Synology · Proxmox · Windows Server · GLPI · Prometheus/Grafana
@@ -14,7 +14,7 @@ Projet de **refonte complète** d'une infrastructure d'entreprise : du réseau (
 accès, périmètre multi-FAI) à la virtualisation (Proxmox, Active Directory, services
 métier, GLPI), en passant par la sécurité, la sauvegarde 3-2-1 et la supervision.
 
-> 🔒 **Dépôt de portfolio — données anonymisées.** Toutes les IP publiques sont
+> 🔒 **Projet documenté avec données anonymisées.** Toutes les IP publiques sont
 > `PUBLIC_IP_REDACTED`, le domaine interne est `example.local`, les mots de passe /
 > clés / community strings / certificats sont des placeholders `<REDACTED>`. Aucune
 > donnée client réelle.
@@ -254,9 +254,10 @@ https://grafana.com/docs/ · Zabbix https://www.zabbix.com/documentation
 
 ## ⚠️ Avertissement
 
-Projet de **démonstration / portfolio**. Les configurations et scripts illustrent une
-démarche réelle mais ne doivent pas être appliqués tels quels en production sans revue,
-tests et secrets valides. Les marques citées appartiennent à leurs éditeurs respectifs.
+Projet **réel**, publié avec des **données anonymisées**. Les configurations et scripts
+sont des extraits représentatifs de la réalisation ; ils ne doivent pas être appliqués
+tels quels sur une autre infrastructure sans revue, tests et secrets valides. Les marques
+citées appartiennent à leurs éditeurs respectifs.
 
 ---
 

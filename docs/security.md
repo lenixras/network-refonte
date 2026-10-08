@@ -91,7 +91,7 @@ Légende : `←` = l'autre côté initie vers la destination ; `✗` = bloqué ;
 
 ## 7. Anonymisation (dépôt public)
 
-Ce dépôt est un **portfolio**. Avant tout push :
+Ce dépôt documente un **projet réel publié avec données anonymisées**. Avant tout push :
 - IPs publiques → `PUBLIC_IP_REDACTED`, domaines → `example.local`.
 - Mots de passe / tokens / community strings / certificats → placeholders.
 - Aucune donnée client, aucun nom réel, aucune IP routable interne.

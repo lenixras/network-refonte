@@ -1,5 +1,5 @@
 # ============================================================================
-# FICHIER : pve01-network.yaml  (EXTRAIT ILLUSTRATIF)
+# FICHIER : pve01-network.yaml  (EXTRAIT DE CONFIGURATION — données anonymisées)
 # PERIPHERIQUE : HPE ProLiant DL380 Gen10 Plus — noeud PROXMOX VE 8.2 "pve01"
 # ROLE : config reseau du noeud (miroir de /etc/network/interfaces, syntaxe
 #        Debian "ifupdown" ; l'extension .yaml est ici un conteneur lisible).

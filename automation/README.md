@@ -5,7 +5,7 @@ Atelier d'**automatisation** dérivé du plan d'architecture
 source de vérité absolue). Il couvre le cycle de vie complet de la refonte :
 inventaire, provisionnement, sauvegarde/restauration et monitoring.
 
-> ⚠️ **Ces scripts sont des EXEMPLES publiés pour un portfolio.** Ils sont
+> ⚠️ **Ces scripts sont extraits de la réalisation, publiés avec données anonymisées.** Ils sont
 > réalistes et défensifs (dry-run par défaut, `set -euo pipefail`, contrôles
 > de cohérence), mais **toutes les données sont anonymisées** :
 > IP publiques → `PUBLIC_IP_REDACTED`, domaine → `example.local`, NetBIOS →

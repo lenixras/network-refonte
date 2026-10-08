@@ -1,5 +1,5 @@
 ================================================================================
-FICHIER : firebox-policy.txt  (EXTRAIT ILLUSTRATIF — politique pare-feu)
+FICHIER : firebox-policy.txt  (EXTRAIT DE CONFIGURATION — données anonymisées — politique pare-feu)
 PERIPHERIQUE : WatchGuard Firebox M270  (hostname FWWG / fw.example.local)
 ROLE : perimetre — 3 WAN, NAT/publish, routage, filtres par VLAN (matrice)
 SOURCE DE VERITE : docs/00-architecture-reference.md (sections 2, 3, 4)

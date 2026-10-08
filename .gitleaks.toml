@@ -3,7 +3,7 @@
 title = "network-refonte secret scan"
 
 [allowlist]
-  description = "Placeholders anonymisés volontaires du dépôt de portfolio"
+  description = "Placeholders anonymisés volontaires du dépôt (données anonymisées)"
   regexes = [
     '''PUBLIC_IP_REDACTED''',
     '''PUBLIC_GW_REDACTED''',

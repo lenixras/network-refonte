@@ -66,5 +66,5 @@
 
 ---
 
-*FIN — snapshot-replication.md (illustratif). Coordonné avec `proxmox/storage.cfg`
+*FIN — snapshot-replication.md (données anonymisées). Coordonné avec `proxmox/storage.cfg`
 (entry PBS `dist-pbs`) et `docs/backup.md`.*

@@ -4,7 +4,7 @@
 #                         a partir de inventory/inventory.yaml (clone du
 #                         template cloud-init, dimensionnement strict du plan).
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Provisionner de façon reproductible les 12 VM du reference design
 #   (VMID 101..501, cf. docs/00-architecture-reference.md §5) sans saisie
 #   manuelle : l'inventaire YAML est la seule source de verite.

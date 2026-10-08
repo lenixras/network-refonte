@@ -5,7 +5,7 @@ Captures d'écran des interfaces (à compléter **après anonymisation**).
 ## Règles avant ajout
 - Flouter : IP publiques, noms de postes/clients réels, e-mails, jetons, URL internes.
 - Aucune capture contenant un mot de passe, une clé ou une community string en clair.
-- Privilégier les environnements de démo fictifs (`example.local`, `10.10.x.x`).
+- Privilégier les adresses de documentation (`example.local`, `10.10.x.x`).
 
 ## Sujets suggérés
 | Fichier | Interface |

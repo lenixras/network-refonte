@@ -3,7 +3,7 @@
 #                   DC01+DC02, strictement alignes sur le plan §4
 #                   (docs/00-architecture-reference.md).
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Finir l'installation DHCP demarree par windows-dc-promote.ps1 :
 #     USERS VLAN 30 : 10.10.30.100-200   gw 10.10.30.1  DNS DC01/DC02  bail 8h
 #     WIFI  VLAN 40 : 10.10.40.100-10.10.43.200  gw 10.10.40.1  DNS DC01/DC02  bail 8h

@@ -3,7 +3,7 @@
 #                          promotion en controleur de domaine (foret
 #                          example.local) selon le plan d'architecture.
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Automatiser la promotion DC01 (creation foret) et DC02 (replica) sur
 #   Windows Server 2022, avec adressage statique strict du plan
 #   (docs/00-architecture-reference.md §4) : DC01 = 10.10.20.101,

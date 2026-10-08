@@ -1,5 +1,5 @@
 ================================================================================
-FICHIER : wan-failover.txt  (EXTRAIT ILLUSTRATIF — gateway/failover 3 FAI)
+FICHIER : wan-failover.txt  (EXTRAIT DE CONFIGURATION — données anonymisées — gateway/failover 3 FAI)
 PERIPHERIQUE : WatchGuard Firebox M270 (FWWG)
 ROLE : politique active/active/standby — Orange + Telma (PBR), Starlink standby
 SOURCE DE VERITE : docs/00-architecture-reference.md (section 2 "Opérateurs")

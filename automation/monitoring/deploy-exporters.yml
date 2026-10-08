@@ -4,7 +4,7 @@
 #                        blackbox_exporter, snmp_exporter) sur l'infrastructure
 #                        example.local decrite dans docs/00-architecture-reference.md.
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Le §8 du plan exige : node_exporter (Linux), windows_exporter (Windows),
 #   pve-exporter (Proxmox), blackbox_exporter (HTTP/TCP/ICMP) et SNMP v3.
 #   Ce playbook installe et configure les cibles; la config Prometheus

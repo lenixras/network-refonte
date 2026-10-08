@@ -3,7 +3,7 @@
 # pbs-backup-job.sh — Declenche, verifie et notifie les sauvegardes Proxmox
 #                     Backup Server (PBS01, VMID 301) pour les VM du plan.
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Operer la strategie 3-2-1 (docs/00-architecture-reference.md §7) :
 #     1. Lancer un vzdump des VM cibles vers le datastore PBS (monte sur
 #        PVE en tant que stockage `pbs-nas`, backed par nas01 10.10.50.20),

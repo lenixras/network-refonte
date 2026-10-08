@@ -4,7 +4,7 @@
 #   Replication du NAS Synology (nas01, 10.10.50.20, VLAN 50) est fraiche,
 #   et alerte si elle est obsolete (maillon NAS -> off-site de la 3-2-1).
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Interroger l'API DSM 7.2 (port 5001 HTTPS) pour lire la date de
 #   derniere execution de chaque tache Snapshot Replication, et declencher
 #   une alerte si lastRun > seuil (defaut 26 h : tolerance d'un cycle

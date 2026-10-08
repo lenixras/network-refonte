@@ -1,5 +1,5 @@
 # ============================================================================
-# FICHIER : telma-cpe.rsc  (EXTRAIT ILLUSTRATIF — configuration MikroTik)
+# FICHIER : telma-cpe.rsc  (EXTRAIT DE CONFIGURATION — données anonymisées — configuration MikroTik)
 # PERIPHERIQUE : MikroTik hEX S (RB750Gr3) — RouterOS v7.x
 # ROLE : CPE Fibre TELMA (secondaire) — simple handoff vers le WatchGuard.
 #        Ne doit RIEN exposer : pas de service public, pas d'admin distant.

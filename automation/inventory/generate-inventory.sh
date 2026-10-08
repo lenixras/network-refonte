@@ -3,7 +3,7 @@
 # generate-inventory.sh — Génère un tableau Markdown d'inventaire depuis
 #                         inventory.yaml (ou un CSV au même schéma).
 #
-# PURPOSE (exemple public — portfolio) :
+# PURPOSE (exemple publié — données anonymisées) :
 #   Industrialiser la doc d'inventaire : une seule source machine-readable
 #   (inventory.yaml, alignée sur docs/00-architecture-reference.md) dont on
 #   dérive le tableau Markdown intégré à la documentation.
